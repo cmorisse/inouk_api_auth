@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <record id="ik_api_auth_token__formview" model="ir.ui.view">
+            <field name="name">ik.api_auth_token.formview</field>
+            <field name="model">ik.api_auth_token</field>
+            <field name="priority" eval="15"/>
+            <field name="arch" type="xml">
+                <form>
+                    <header>
+                            <button class="btn-warning"
+                                    type="object"
+                                    string="Regenerate Token"
+                                    icon="fa-refresh"
+                                    name="btn_regenerate_token" />
+                            <button class="btn-danger"
+                                    type="object"
+                                    string="Restore Token"
+                                    attrs="{'invisible': [('is_compromised','=',False)]}"
+                                    icon="fa-cog"
+                                    groups="base.group_no_one"
+                                    name="btn_restore_token" />
+
+                        <!--field name="state" widget="statusbar" statusbar_visible="draft,sent,sale"/-->
+                    </header>                    
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button class="oe_stat_button"
+                                    type="object"
+                                    string="Refresh"
+                                    icon="fa-refresh"
+                                    name="btn_refresh" />
+
+                        </div>
+                        
+                        <div>
+                            <h1>
+                                <field name="name"  />
+                            </h1>
+                            <div class="o_row">
+                                <field name="description" default_focus="1" placeholder="Enter description here" />
+                            </div>
+
+                        </div>
+    
+                        <group>
+                            <group colspan="4">
+                                <field name="static_token"  />
+                            </group>
+                            <group>
+                                <field name="token_type" />
+                                <field name="user_id" />
+                                <field name="enforce_integrity" />
+                            </group>
+                            <group>
+                                <field name="expiration_ts" />
+                                <field name="is_compromised" />
+                            </group>
+                        </group>
+                        <notebook>
+                            <page string="Security log">
+                                <field name="security_log" colspan="4" />
+                            </page>
+                            <page string="Advanced">
+                                <group>
+                                    <group>
+                                        <field name="id"  />
+                                    </group>
+                                    <group>
+                                        <field name="create_date"  />
+                                        <field name="write_date"  />
+                                    </group>
+                                </group>
+
+                            </page>
+
+                        </notebook>
+    
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+
+        <record id="ik_api_auth_token__treeview" model="ir.ui.view">
+            <field name="name">ik.api_auth_token.treeview</field>
+            <field name="model">ik.api_auth_token</field>
+            <field name="priority" eval="15"/>
+            <field name="arch" type="xml">
+                <tree>
+                    <field name="user_id"/>
+                    <field name="token_type"/>
+                    <field name="static_token"/>
+                    <field name="expiration_ts"/>
+                    <field name="description"  optional="show" />
+                    <field name="is_compromised" string="Compromised" />
+                </tree>
+            </field>
+        </record>
+        
+        <record id="ik_api_auth_token__actwindow" model="ir.actions.act_window">
+            <field name="name">API Auth Tokens</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="res_model">ik.api_auth_token</field>
+            <field name="view_mode">tree,form</field>
+            <field name="context"></field>
+        </record>
+    </data>
+</odoo>

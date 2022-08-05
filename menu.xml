@@ -1,0 +1,8 @@
+<openerp>
+    <data noupdate="0">
+                <menuitem id="api_auth_token__menuitem"
+                          parent="inouk_core.api_mainmmenu"
+                          sequence="10000"
+                          action="ik_api_auth_token__actwindow" />
+    </data>
+</openerp>

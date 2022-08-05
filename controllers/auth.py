@@ -21,6 +21,7 @@ _logger = logging.getLogger(__name__)
 
 from ..api import ik_authorize
 
+TEST_CONTROLLER_URL = '/inouk/api_auth/v1/hello'
 
 # Important
 # All route() must set save_session=False to prevent Odoo from returning a session_id cookie.
@@ -29,11 +30,11 @@ class InoukAPIAuthControllerV1(Controller):
     """ API to manage inouk_auth_api tokens.
     """
     @ik_authorize
-    @route('/inouk/api_auth/v1/hello', methods=['GET'], type='http', auth='none', csrf=False, save_session=False)
+    @route(TEST_CONTROLLER_URL, methods=['GET'], type='http', auth='none', csrf=False, save_session=False)
     def hello(self, *args, **kwargs):
         """ A dump controller to test token.
         """
         _logger.info("received args: %s", args )
         _logger.info("received kwargs: %s", kwargs )
-        return "Hello, <br> Received %s." % kwargs['token_obj']
+        return "Hello ! Call Ok. Received %s\n" % kwargs['token_obj']
 

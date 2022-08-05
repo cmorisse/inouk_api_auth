@@ -1,10 +1,13 @@
 import logging
 import secrets
 from datetime import datetime, timedelta
+from urllib.parse import urljoin
 
 from odoo import api, fields, models, _
 from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, float_compare
 from odoo.exceptions import UserError
+
+from ..controllers.auth import TEST_CONTROLLER_URL
 
 _logger = logging.getLogger(__name__)
 
@@ -43,6 +46,33 @@ class InoukAPIAuthToken(models.Model):
         default=False
     )
     security_log = fields.Text()
+
+    hello_curl = fields.Char(
+        string="Test URL",
+        compute="compute__test_curl",
+        help="This cURL calls a test controller that just returns the token used."
+    )
+    hello_url = fields.Char(
+        string="Hello URL",
+        compute="compute__test_curl",
+        help="This is a test cURL that just returns the token used"
+    )
+    def compute__test_curl(self):
+        for record in self:
+            _base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
+            if _base_url:
+                record.hello_url = urljoin(
+                    _base_url,
+                    TEST_CONTROLLER_URL
+                )
+                if record.token_type == 'bearer':
+                    record.hello_curl = f"curl --header 'Authorization: Bearer {record.static_token}' {record.hello_url}"
+                elif record.token_type == 'xgitlabtoken':
+                    record.hello_curl = f"curl --header 'X-Gitlab-Token: {record.static_token}' {record.hello_url}"
+                else:
+                    raise UserError("Unsupported token_type: %s" %  record.token_type)
+            else:
+                record.hello_url = None
 
     _sql_constraints = [
         ('token_uniq', "UNIQUE(static_token, token_type)", "Token must be unique!")

@@ -56,6 +56,10 @@
                                 <field name="expiration_ts" />
                                 <field name="is_compromised" />
                             </group>
+                            <group colspan="4">
+                                <field name="hello_curl" widget="CopyClipboardChar" style="text-align: left;"/>
+                            </group>
+
                         </group>
                         <notebook>
                             <page string="Security log">

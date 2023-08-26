@@ -10,11 +10,11 @@ import werkzeug.wrappers
 from odoo.http import request, route, Controller, AuthenticationError
 from odoo.tools.safe_eval import safe_eval
 
-from odoo.addons.muppy_core.api import MpyException, MpyAPIException, mpy_execute
-from odoo.addons.muppy_postgresql_base.scripts import postgresql
-from odoo.addons.muppy_postgresql_replication.scripts import postgresql_sr
-from odoo.addons.muppy_core.scripts import demo
-from odoo.addons.muppy_core.utils import json_datetime_serializer
+#from odoo.addons.muppy_core.api import MpyException, MpyAPIException, mpy_execute
+#from odoo.addons.muppy_postgresql_base.scripts import postgresql
+#from odoo.addons.muppy_postgresql_replication.scripts import postgresql_sr
+#from odoo.addons.muppy_core.scripts import demo
+#from odoo.addons.muppy_core.utils import json_datetime_serializer
 
 
 _logger = logging.getLogger(__name__)

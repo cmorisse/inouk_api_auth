@@ -12,11 +12,6 @@ from odoo import fields
 from odoo.http import request, route, Controller, AuthenticationError
 from odoo.tools.safe_eval import safe_eval
 
-from odoo.addons.muppy_core.api import MpyException, MpyAPIException, mpy_execute
-from odoo.addons.muppy_postgresql_base.scripts import postgresql
-from odoo.addons.muppy_postgresql_replication.scripts import postgresql_sr
-from odoo.addons.muppy_core.scripts import demo
-from odoo.addons.muppy_core.utils import json_datetime_serializer
 
 
 _logger = logging.getLogger(__name__)
@@ -26,6 +21,14 @@ _logger = logging.getLogger(__name__)
 def ik_authorize(func):
     """ Bearer Token https://tools.ietf.org/html/rfc6750 compatible
     https://stackoverflow.com/questions/22229996/basic-http-and-bearer-token-authentication
+
+    Bearer Token can be passed using:
+      - Authorization header
+      - access_token URL parameter 
+      
+    For compatibility with Gitlab WebHook, ik_authorize accepts:
+      - X-Gitlab-Token header
+
     """
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
@@ -55,8 +58,12 @@ def ik_authorize(func):
 
             else:
                 token_string = request.params.get('access_token')
+                if not token_string:
+                    token_string = request.httprequest.args.get('access_token')
+
                 if token_string: 
-                    del request.params['access_token']
+                    if 'access_token' in request.params:
+                        del request.params['access_token']
                     token_type = 'bearer'
                 else:
                     raise AuthenticationError("Missing required Authorization.")
@@ -103,6 +110,8 @@ def ik_authorize(func):
         #request.uid = static_token_obj.user_id.id
         request.session.uid = user_obj.id
         request.uid = user_obj.id
+        request.session.session_token = user_obj._compute_session_token(request.session.sid)
+        #request.inouk_api_auth_token_id = token_obj.id
         kwargs['token_obj'] = token_obj
         return func(self, *args, **kwargs)
     return wrapper

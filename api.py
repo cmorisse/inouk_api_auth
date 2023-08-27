@@ -110,9 +110,9 @@ def ik_authorize(func):
         #request.uid = static_token_obj.user_id.id
         request.session.uid = user_obj.id
         request.uid = user_obj.id
+        # We must set session_token to validate login
         request.session.session_token = user_obj._compute_session_token(request.session.sid)
         #request.inouk_api_auth_token_id = token_obj.id
         kwargs['token_obj'] = token_obj
         return func(self, *args, **kwargs)
     return wrapper
-

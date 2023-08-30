@@ -9,7 +9,8 @@ import werkzeug.wrappers
 from urllib.parse import urlparse
 
 from odoo import fields
-from odoo.http import request, route, Controller, AuthenticationError
+from odoo.http import request, route, Controller
+from odoo.exceptions import AccessDenied
 from odoo.tools.safe_eval import safe_eval
 
 
@@ -66,7 +67,7 @@ def ik_authorize(func):
                         del request.params['access_token']
                     token_type = 'bearer'
                 else:
-                    raise AuthenticationError("Missing required Authorization.")
+                    raise AccessDenied("Missing required Authorization.")
 
         if token_string.lower().startswith('bearer '):
             static_token = token_string.split()[1]
@@ -86,7 +87,7 @@ def ik_authorize(func):
             limit=1
         )            
         if not token_obj:
-            raise AuthenticationError("Invalid Access Token.")
+            raise AccessDenied("Invalid Access Token.")
 
         if is_compromised:
             if token_obj.enforce_integrity:
@@ -102,7 +103,7 @@ def ik_authorize(func):
                 })
                 token_obj.flush() ; request.env.cr.commit()
                 _logger.info("Token %s set as compromised !", token_obj)
-                raise AuthenticationError("Invalid Access Token.")
+                raise AccessDenied("Invalid Access Token.")
             else:
                 _logger.warning("Token %s received over unsecure 'http' from %s.", token_obj, sender_ip)
         user_obj = token_obj.user_id

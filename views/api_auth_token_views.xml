@@ -45,7 +45,7 @@
     
                         <group>
                             <group colspan="4">
-                                <field name="static_token"  />
+                                <field name="static_token" widget="CopyClipboardChar" />
                             </group>
                             <group>
                                 <field name="token_type" />

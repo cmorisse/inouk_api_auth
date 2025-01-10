@@ -52,6 +52,10 @@ class InoukAPIAuthToken(models.Model):
         compute="compute__test_curl",
         help="This cURL calls a test controller that just returns the token used."
     )
+    test_use_header = fields.Boolean(
+        "Token in header",
+        default=True
+    )
     hello_url = fields.Char(
         string="Hello URL",
         compute="compute__test_curl",
@@ -66,9 +70,16 @@ class InoukAPIAuthToken(models.Model):
                     TEST_CONTROLLER_URL
                 )
                 if record.token_type == 'bearer':
-                    record.hello_curl = f"curl --header 'Authorization: Bearer {record.static_token}' {record.hello_url}"
+                    if record.test_use_header:
+                        record.hello_curl = f"curl --header 'Authorization: Bearer {record.static_token}' {record.hello_url}"
+                    else:
+                        record.hello_curl = f"curl '{record.hello_url}?access_token={record.static_token}'"
+
                 elif record.token_type == 'xgitlabtoken':
-                    record.hello_curl = f"curl --header 'X-Gitlab-Token: {record.static_token}' {record.hello_url}"
+                    if record.test_use_header:
+                        record.hello_curl = f"curl --header 'X-Gitlab-Token: {record.static_token}' {record.hello_url}"
+                    else:
+                        record.hello_curl = f"curl '{record.hello_url}?access_token={record.static_token}'"
                 else:
                     raise UserError("Unsupported token_type: %s" %  record.token_type)
             else:

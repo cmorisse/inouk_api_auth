@@ -57,6 +57,7 @@
                                 <field name="is_compromised" />
                             </group>
                             <group colspan="4">
+                                <field name="test_use_header" widget="boolean_toggle"/>
                                 <field name="hello_curl" widget="CopyClipboardChar" style="text-align: left;"/>
                             </group>
 

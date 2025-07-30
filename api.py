@@ -101,7 +101,7 @@ def ik_authorize(func):
                                         token_obj.security_log or ''
                                     )
                 })
-                token_obj.flush() ; request.env.cr.commit()
+                token_obj.flush_recordset() ; request.env.cr.commit()
                 _logger.info("Token %s set as compromised !", token_obj)
                 raise AccessDenied("Invalid Access Token.")
             else:

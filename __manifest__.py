@@ -5,7 +5,17 @@
 
     'summary': """ Manages authorization and authentication tokens for Odoo API Controllers.""",
 
-    'description': """System automation platform.""",
+    'description': """
+Token-based API authentication system for Odoo controllers.
+
+Features:
+* Bearer Token and X-Gitlab-Token support
+* HTTPS integrity enforcement
+* Token expiration management
+* Security audit logging
+* New auth='ik_bearer' authentication method
+* Legacy @ik_authorize decorator support (deprecated)
+""",
 
     'author': "Cyril MORISSE",
     'website': "http://twitter.com/cmorisse",
@@ -14,7 +24,7 @@
     # Check https://github.com/odoo/odoo/blob/master/openerp/addons/base/module/module_data.xml
     # for the full list
     'category': 'Inouk',
-    'version': '0.0',
+    'version': '1.0.0',
     "license": "LGPL-3",
     # any module necessary for this one to work correctly
     'depends': [

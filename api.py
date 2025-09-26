@@ -5,6 +5,7 @@ import datetime
 import re
 import pprint
 import logging
+import warnings
 import werkzeug.wrappers
 from urllib.parse import urlparse
 
@@ -22,16 +23,27 @@ def ik_authorize(func):
     """ Bearer Token https://tools.ietf.org/html/rfc6750 compatible
     https://stackoverflow.com/questions/22229996/basic-http-and-bearer-token-authentication
 
+    *** DEPRECATED ***
+    This decorator is deprecated. Please use auth='ik_bearer' instead.
+    Example: @route('/api/endpoint', methods=['GET'], auth='ik_bearer', ...)
+
     Bearer Token can be passed using:
       - Authorization header
-      - access_token URL parameter 
-      
+      - access_token URL parameter
+
     For compatibility with Gitlab WebHook, ik_authorize accepts:
       - X-Gitlab-Token header
 
     """
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
+        # Issue deprecation warning
+        warnings.warn(
+            "The @ik_authorize decorator is deprecated. "
+            "Please use auth='ik_bearer' in your route definition instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
 
         # Check Sender for token auth
         sender_ip = request.httprequest.environ.get('REMOTE_ADDR')

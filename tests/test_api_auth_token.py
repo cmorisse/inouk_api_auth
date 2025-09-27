@@ -201,3 +201,77 @@ class TestAPIAuthToken(TransactionCase):
 
         self.assertFalse(token.hello_url)
         # hello_curl should be empty when no base URL
+
+    def test_aws_sigv4_token_creation(self):
+        """Test AWS SigV4 token creation and field validation"""
+        aws_token = self.env['ik.api_auth_token'].create({
+            'name': 'AWS SigV4 Token',
+            'user_id': self.user_demo.id,
+            'token_type': 'awssigv4',
+            'awssigv4_access_key_id': 'AKIAIOSFODNN7EXAMPLE',
+            'awssigv4_secret_access_key': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        })
+
+        self.assertEqual(aws_token.token_type, 'awssigv4')
+        self.assertEqual(aws_token.awssigv4_access_key_id, 'AKIAIOSFODNN7EXAMPLE')
+        self.assertEqual(aws_token.awssigv4_secret_access_key, 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY')
+
+    def test_aws_key_generation(self):
+        """Test AWS key generation functionality"""
+        aws_token = self.env['ik.api_auth_token'].create({
+            'name': 'AWS SigV4 Token',
+            'user_id': self.user_demo.id,
+            'token_type': 'awssigv4',
+        })
+
+        # Generate AWS keys
+        aws_token.btn_generate_awssigv4_keys()
+
+        # Check key format
+        self.assertTrue(aws_token.awssigv4_access_key_id.startswith('AKIA'))
+        self.assertEqual(len(aws_token.awssigv4_access_key_id), 20)
+        self.assertEqual(len(aws_token.awssigv4_secret_access_key), 40)
+
+    def test_aws_curl_generation(self):
+        """Test AWS SigV4 curl command generation"""
+        self.env['ir.config_parameter'].sudo().set_param('web.base.url', 'https://test.example.com')
+
+        aws_token = self.env['ik.api_auth_token'].create({
+            'name': 'AWS SigV4 Token',
+            'user_id': self.user_demo.id,
+            'token_type': 'awssigv4',
+            'awssigv4_access_key_id': 'AKIAIOSFODNN7EXAMPLE',
+            'awssigv4_secret_access_key': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        })
+
+        # Test curl generation
+        curl_command = aws_token.compute__awssigv4_test_curl()
+        self.assertIn('curl', curl_command)
+        self.assertIn('Authorization:', curl_command)
+        self.assertIn('AWS4-HMAC-SHA256', curl_command)
+
+    def test_aws_curl_without_keys(self):
+        """Test AWS SigV4 curl generation without keys"""
+        aws_token = self.env['ik.api_auth_token'].create({
+            'name': 'AWS SigV4 Token',
+            'user_id': self.user_demo.id,
+            'token_type': 'awssigv4',
+        })
+
+        curl_command = aws_token.compute__awssigv4_test_curl()
+        self.assertEqual(curl_command, "# Generate AWS keys first")
+
+    def test_aws_curl_no_base_url(self):
+        """Test AWS SigV4 curl generation without base URL"""
+        self.env['ir.config_parameter'].sudo().set_param('web.base.url', '')
+
+        aws_token = self.env['ik.api_auth_token'].create({
+            'name': 'AWS SigV4 Token',
+            'user_id': self.user_demo.id,
+            'token_type': 'awssigv4',
+            'awssigv4_access_key_id': 'AKIAIOSFODNN7EXAMPLE',
+            'awssigv4_secret_access_key': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        })
+
+        curl_command = aws_token.compute__awssigv4_test_curl()
+        self.assertEqual(curl_command, "# Configure web.base.url first")

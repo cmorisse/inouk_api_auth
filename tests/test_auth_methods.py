@@ -223,3 +223,75 @@ class TestAuthMethods(TransactionCase):
             # Should work but generate warning
             self.assertEqual(mock_request.session.uid, self.user_demo.id)
             self.assertFalse(self.test_token.is_compromised)
+
+    @patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request')
+    def test_auth_method_ik_awssigv4_success(self, mock_request):
+        """Test successful AWS SigV4 authentication"""
+        from unittest.mock import MagicMock
+
+        # Create AWS SigV4 token
+        aws_token = self.env['ik.api_auth_token'].create({
+            'name': 'AWS SigV4 Token',
+            'user_id': self.user_demo.id,
+            'token_type': 'awssigv4',
+            'awssigv4_access_key_id': 'AKIAIOSFODNN7EXAMPLE',
+            'awssigv4_secret_access_key': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        })
+
+        mock_request = self._create_mock_request(
+            url='https://test.example.com/api',
+            headers={
+                'Authorization': 'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20230101/us-east-1/execute-api/aws4_request, SignedHeaders=host;x-amz-date, Signature=example'
+            }
+        )
+        mock_request.httprequest.method = 'GET'
+        mock_request.httprequest.get_data.return_value = b''
+
+        with patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request', mock_request):
+            with patch.object(self.env['ir.http'], '_validate_awssigv4_signature', return_value=True):
+                ir_http = self.env['ir.http']
+                ir_http._auth_method_ik_awssigv4()
+
+                self.assertEqual(mock_request.session.uid, self.user_demo.id)
+                self.assertEqual(mock_request.uid, self.user_demo.id)
+                self.assertEqual(mock_request.inouk_token_obj, aws_token)
+
+    @patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request')
+    def test_auth_method_ik_awssigv4_invalid_header(self, mock_request):
+        """Test AWS SigV4 authentication with invalid header"""
+        mock_request = self._create_mock_request(
+            headers={'Authorization': 'Bearer invalid'}
+        )
+
+        with patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request', mock_request):
+            ir_http = self.env['ir.http']
+            with self.assertRaises(AuthenticationError) as cm:
+                ir_http._auth_method_ik_awssigv4()
+            self.assertIn("Missing or invalid AWS4-HMAC-SHA256", str(cm.exception))
+
+    @patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request')
+    def test_auth_method_ik_awssigv4_invalid_signature(self, mock_request):
+        """Test AWS SigV4 authentication with invalid signature"""
+        # Create AWS SigV4 token
+        aws_token = self.env['ik.api_auth_token'].create({
+            'name': 'AWS SigV4 Token',
+            'user_id': self.user_demo.id,
+            'token_type': 'awssigv4',
+            'awssigv4_access_key_id': 'AKIAIOSFODNN7EXAMPLE',
+            'awssigv4_secret_access_key': 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+        })
+
+        mock_request = self._create_mock_request(
+            headers={
+                'Authorization': 'AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20230101/us-east-1/execute-api/aws4_request, SignedHeaders=host;x-amz-date, Signature=invalid'
+            }
+        )
+        mock_request.httprequest.method = 'GET'
+        mock_request.httprequest.get_data.return_value = b''
+
+        with patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request', mock_request):
+            with patch.object(self.env['ir.http'], '_validate_awssigv4_signature', return_value=False):
+                ir_http = self.env['ir.http']
+                with self.assertRaises(AuthenticationError) as cm:
+                    ir_http._auth_method_ik_awssigv4()
+                self.assertIn("Invalid AWS Signature", str(cm.exception))

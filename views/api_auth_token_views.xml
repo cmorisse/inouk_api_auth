@@ -10,9 +10,10 @@
                     <header>
                             <button class="btn-warning"
                                     type="object"
-                                    string="Regenerate Token"
+                                    string="Regenerate Credentials"
                                     icon="fa-refresh"
-                                    name="btn_regenerate_token" />
+                                    name="btn_regenerate_credentials"
+                                    confirm="Are you sure you want to regenerate the credentials? The old ones will stop working immediately." />
                             <button class="btn-danger"
                                     type="object"
                                     string="Restore Token"
@@ -44,9 +45,6 @@
                         </div>
     
                         <group>
-                            <group colspan="4">
-                                <field name="static_token" widget="CopyClipboardChar" />
-                            </group>
                             <group>
                                 <field name="token_type" />
                                 <field name="user_id" />
@@ -56,13 +54,22 @@
                                 <field name="expiration_ts" />
                                 <field name="is_compromised" />
                             </group>
-                            <group colspan="4">
+                            <group colspan="4" attrs="{'invisible': [('token_type','=','awssigv4')]}">
                                 <field name="test_use_header" widget="boolean_toggle"/>
-                                <field name="hello_curl" widget="CopyClipboardChar" style="text-align: left;"/>
+                                <field name="static_token" widget="CopyClipboardChar" />
+                                   <field name="hello_curl" widget="CopyClipboardChar" style="text-align: left;"/>
+                            </group>
+                            <group string="AWS Credentials" colspan="4" attrs="{'invisible': [('token_type','!=','awssigv4')]}">
+                                <field name="awssigv4_access_key_id" string="ACCESS KEY ID" widget="CopyClipboardChar" placeholder="AKIA..." />
+                                <field name="awssigv4_secret_access_key" string="SECRET ACCESS KEY" widget="CopyClipboardChar" placeholder="40-character secret key" />
+                                <field name="hello_curl" widget="CopyClipboardChar" style="text-align: left;" string="AWS SigV4 Test cURL"/>
                             </group>
 
                         </group>
                         <notebook>
+                            <page string="Documentation" attrs="{'invisible': ['&amp;', ('static_token','=',False), ('awssigv4_access_key_id','=',False)]}">
+                                <field name="python_examples" nolabel="1" readonly="1"/>
+                            </page>
                             <page string="Security log">
                                 <field name="security_log" colspan="4" />
                             </page>
@@ -95,7 +102,6 @@
                 <tree>
                     <field name="user_id"/>
                     <field name="token_type"/>
-                    <field name="static_token"/>
                     <field name="expiration_ts"/>
                     <field name="description"  optional="show" />
                     <field name="is_compromised" string="Compromised" />

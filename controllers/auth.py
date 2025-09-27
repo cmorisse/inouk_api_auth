@@ -23,6 +23,7 @@ from ..api import ik_authorize
 
 TEST_CONTROLLER_URL = '/inouk/api_auth/v1/hello'
 TEST_CONTROLLER_V2_URL = '/inouk/api_auth/v2/hello'
+AWSSIGV4_TEST_CONTROLLER_URL = '/inouk/api_auth/v2/awssigv4_test'
 
 # Important
 # All route() must set save_session=False to prevent Odoo from returning a session_id cookie.
@@ -52,4 +53,28 @@ class InoukAPIAuthControllerV1(Controller):
             return "Hello v2! Call Ok. Received token: %s (User: %s)\n" % (token_obj.name, token_obj.user_id.name)
         else:
             return "Hello v2! Call Ok but no token object found.\n"
+
+    @route(AWSSIGV4_TEST_CONTROLLER_URL, methods=['GET'], type='http', auth='ik_awssigv4', csrf=False, save_session=False)
+    def awssigv4_test(self, *args, **kwargs):
+        """ A controller to test AWS Signature Version 4 authentication.
+        """
+        _logger.info("received args: %s", args )
+        _logger.info("received kwargs: %s", kwargs )
+
+        # Access token object stored by the authentication method
+        token_obj = getattr(request, 'inouk_token_obj', None)
+        if token_obj:
+            # Get region and service from request (stored during authentication)
+            region = getattr(request, 'awssigv4_region', 'N/A')
+            service = getattr(request, 'awssigv4_service', 'N/A')
+
+            return "AWS SigV4 test successful! Token: %s (User: %s)\nAccess Key ID: %s\nRegion: %s\nService: %s\n" % (
+                token_obj.name,
+                token_obj.user_id.name,
+                token_obj.awssigv4_access_key_id,
+                region,
+                service
+            )
+        else:
+            return "AWS SigV4 test failed - no token object found.\n"
 

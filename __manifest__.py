@@ -46,7 +46,7 @@ Features:
         #'security/ir_rule.xml',
 
         # Wizards (defined before views that referenced them)
-        #'wizards/launch_task_wizard_view.xml',
+        'wizards/httpbasic_credentials_wizard_view.xml',
 
         # views
         'views/api_auth_token_views.xml',

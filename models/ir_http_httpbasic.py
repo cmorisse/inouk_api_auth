@@ -1,0 +1,107 @@
+# -*- coding: utf-8 -*-
+import base64
+import logging
+
+from odoo import models, fields
+from odoo.http import request, AuthenticationError
+from werkzeug.security import check_password_hash
+
+_logger = logging.getLogger(__name__)
+
+
+class IrHttpBasic(models.AbstractModel):
+    _inherit = 'ir.http'
+
+    @classmethod
+    def _auth_method_ik_httpbasicauth(cls):
+        """Authentication method for HTTP Basic Authentication
+
+        This method implements HTTP Basic Authentication as defined in RFC 7617
+        https://tools.ietf.org/html/rfc7617
+
+        The credentials must be provided in the Authorization header:
+        Authorization: Basic <base64-encoded-username:password>
+        """
+        # Get request information for security checks
+        sender_ip = request.httprequest.environ.get('REMOTE_ADDR')
+        http_referer = request.httprequest.environ.get('HTTP_REFERER')
+
+        # Extract Authorization header
+        auth_header = request.httprequest.headers.get('Authorization', '')
+        if not auth_header.lower().startswith('basic '):
+            raise AuthenticationError("Missing or invalid Basic Authorization header.")
+
+        # Decode the base64 credentials
+        try:
+            encoded_credentials = auth_header.split(' ', 1)[1]
+            decoded_credentials = base64.b64decode(encoded_credentials).decode('utf-8')
+            username, password = decoded_credentials.split(':', 1)
+            _logger.info("HTTP Basic auth - Username: %s", username)
+        except (IndexError, ValueError, UnicodeDecodeError) as e:
+            _logger.warning("HTTP Basic auth - Failed to decode credentials: %s", e)
+            raise AuthenticationError("Invalid Basic Authorization format.")
+
+        # Search for token in database by username
+        token_obj = request.env['ik.api_auth_token'].sudo().search([
+            ('httpbasicauth_username', '=', username),
+            ('token_type', '=', 'httpbasicauth'),
+        ], order='id DESC', limit=1)
+
+        # Decision tree based on token status
+        if not token_obj:
+            _logger.warning("HTTP Basic authentication failed - no token found for username: %s", username)
+            raise AuthenticationError("Invalid credentials.")
+        elif token_obj.is_compromised:
+            _logger.warning("HTTP Basic authentication failed - token %s (ID: %s) is compromised",
+                          token_obj.name, token_obj.id)
+            raise AuthenticationError("Invalid credentials.")
+        elif token_obj.expiration_ts and token_obj.expiration_ts <= fields.Datetime.now():
+            _logger.warning("HTTP Basic authentication failed - token %s (ID: %s) expired at %s",
+                          token_obj.name, token_obj.id, token_obj.expiration_ts)
+            raise AuthenticationError("Invalid credentials.")
+
+        # Validate password against stored hash
+        if not token_obj.httpbasicauth_password_hash:
+            _logger.warning("HTTP Basic authentication failed - no password hash for token %s", token_obj.name)
+            raise AuthenticationError("Invalid credentials.")
+
+        if not check_password_hash(token_obj.httpbasicauth_password_hash, password):
+            _logger.warning("HTTP Basic authentication failed - invalid password for username: %s", username)
+            raise AuthenticationError("Invalid credentials.")
+
+        # Check if token was sent over HTTPS
+        is_compromised = cls._check_token_compromised(request, http_referer)
+
+        if is_compromised:
+            if token_obj.enforce_integrity:
+                # Mark token as compromised and expire it
+                cls._compromise_token(token_obj, sender_ip)
+                raise AuthenticationError("Invalid credentials.")
+            else:
+                _logger.warning("HTTP Basic token %s received over unsecure 'http' from %s.", token_obj, sender_ip)
+
+        # Authenticate the user associated with the token
+        user_obj = token_obj.user_id
+        request.session.uid = user_obj.id
+        request.uid = user_obj.id
+
+        # Set session token to validate the session
+        request.session.session_token = user_obj._compute_session_token(request.session.sid)
+
+        # Build auth details specific to HTTP Basic
+        auth_details = {
+            'username': username,
+            'encoding': 'base64',  # HTTP Basic always uses base64 encoding
+        }
+
+        # Build and store complete auth context
+        request.inouk_api_auth = cls._build_auth_context(
+            token_obj=token_obj,
+            auth_type='httpbasicauth',
+            auth_details=auth_details
+        )
+
+        # Keep legacy attribute for backward compatibility
+        request.inouk_token_obj = token_obj
+
+        _logger.debug("User %s authenticated via HTTP Basic token %s", user_obj.name, token_obj.name)

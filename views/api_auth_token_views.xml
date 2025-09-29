@@ -54,24 +54,33 @@
                                 <field name="expiration_ts" />
                                 <field name="is_compromised" />
                             </group>
-                            <group colspan="4" attrs="{'invisible': [('token_type','=','awssigv4')]}">
+                            <group colspan="4" attrs="{'invisible': [('token_type','not in',['bearer','xgitlabtoken'])]}">
                                 <field name="test_use_header" widget="boolean_toggle"/>
-                                <field name="static_token" widget="CopyClipboardChar" />
-                                   <field name="hello_curl" widget="CopyClipboardChar" style="text-align: left;"/>
+                                <field name="static_token" widget="CopyClipboardChar" attrs="{'required': [('token_type','in',['bearer','xgitlabtoken'])]}"/>
+                                <field name="hello_curl" widget="CopyClipboardChar" style="text-align: left;"/>
                             </group>
                             <group string="AWS Credentials" colspan="4" attrs="{'invisible': [('token_type','!=','awssigv4')]}">
                                 <field name="awssigv4_access_key_id" string="ACCESS KEY ID" widget="CopyClipboardChar" placeholder="AKIA..." />
                                 <field name="awssigv4_secret_access_key" string="SECRET ACCESS KEY" widget="CopyClipboardChar" placeholder="40-character secret key" />
                                 <field name="hello_curl" widget="CopyClipboardChar" style="text-align: left;" string="AWS SigV4 Test cURL"/>
                             </group>
+                            <group string="HTTP Basic Credentials" colspan="4" col="2" attrs="{'invisible': [('token_type','!=','httpbasicauth')]}">
+                                <field name="httpbasicauth_username" string="Username" widget="CopyClipboardChar" readonly="1" />
+                                <field name="httpbasicauth_password_hash" string="Password Hash (Technical)" readonly="1"  />
+                                <field name="hello_curl" widget="CopyClipboardChar" style="text-align: left;" string="HTTP Basic Test cURL"/>
+                                <div class="alert alert-info" role="alert" colspan="2">
+                                    <strong>Note:</strong> Use the "Regenerate Credentials" button to generate or update your HTTP Basic authentication credentials.
+                                    The wizard will allow you to set custom credentials or auto-generate secure ones.
+                                </div>
+                            </group>
 
                         </group>
                         <notebook>
-                            <page string="Documentation" attrs="{'invisible': ['&amp;', ('static_token','=',False), ('awssigv4_access_key_id','=',False)]}">
-                                <field name="python_examples" nolabel="1" readonly="1"/>
-                            </page>
                             <page string="Security log">
                                 <field name="security_log" colspan="4" />
+                            </page>
+                            <page string="Documentation" attrs="{'invisible': ['&amp;', ('static_token','=',False), ('awssigv4_access_key_id','=',False), ('httpbasicauth_username','=',False)]}">
+                                <field name="python_examples" nolabel="1" readonly="1"/>
                             </page>
                             <page string="Advanced">
                                 <group>

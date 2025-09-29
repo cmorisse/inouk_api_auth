@@ -7,6 +7,7 @@ import pprint
 import logging
 import werkzeug.wrappers
 
+from odoo import fields
 from odoo.http import request, route, Controller, AuthenticationError
 from odoo.tools.safe_eval import safe_eval
 
@@ -24,6 +25,12 @@ from ..api import ik_authorize
 TEST_CONTROLLER_URL = '/inouk/api_auth/v1/hello'
 TEST_CONTROLLER_V2_URL = '/inouk/api_auth/v2/hello'
 AWSSIGV4_TEST_CONTROLLER_URL = '/inouk/api_auth/v2/awssigv4_test'
+HTTPBASIC_TEST_CONTROLLER_URL = '/inouk/api_auth/v2/httpbasic_test'
+# Base URL for unified token status endpoints
+TOKEN_STATUS_CONTROLLER_URL = '/inouk/api_auth/v2/token/status'
+TOKEN_STATUS_BEARER_URL = TOKEN_STATUS_CONTROLLER_URL + '/bearer'
+TOKEN_STATUS_AWSSIGV4_URL = TOKEN_STATUS_CONTROLLER_URL + '/awssigv4'
+TOKEN_STATUS_HTTPBASIC_URL = TOKEN_STATUS_CONTROLLER_URL + '/httpbasic'
 
 # Important
 # All route() must set save_session=False to prevent Odoo from returning a session_id cookie.
@@ -40,23 +47,10 @@ class InoukAPIAuthControllerV1(Controller):
         _logger.info("received kwargs: %s", kwargs )
         return "Hello ! Call Ok. Received %s\n" % kwargs['token_obj']
 
-    @route(TEST_CONTROLLER_V2_URL, methods=['GET'], type='http', auth='ik_bearer', csrf=False, save_session=False)
-    def hello_v2(self, *args, **kwargs):
-        """ A controller to test token using new auth='ik_bearer' method.
-        """
-        _logger.info("received args: %s", args )
-        _logger.info("received kwargs: %s", kwargs )
-
-        # Access token object stored by the authentication method
-        token_obj = getattr(request, 'inouk_token_obj', None)
-        if token_obj:
-            return "Hello v2! Call Ok. Received token: %s (User: %s)\n" % (token_obj.name, token_obj.user_id.name)
-        else:
-            return "Hello v2! Call Ok but no token object found.\n"
-
     @route(AWSSIGV4_TEST_CONTROLLER_URL, methods=['GET'], type='http', auth='ik_awssigv4', csrf=False, save_session=False)
     def awssigv4_test(self, *args, **kwargs):
         """ A controller to test AWS Signature Version 4 authentication.
+        DEPRECATED: Use /inouk/api_auth/v2/token/status/awssigv4 instead
         """
         _logger.info("received args: %s", args )
         _logger.info("received kwargs: %s", kwargs )
@@ -77,4 +71,161 @@ class InoukAPIAuthControllerV1(Controller):
             )
         else:
             return "AWS SigV4 test failed - no token object found.\n"
+
+    @route(HTTPBASIC_TEST_CONTROLLER_URL, methods=['GET'], type='http', auth='ik_httpbasicauth', csrf=False, save_session=False)
+    def httpbasic_test(self, *args, **kwargs):
+        """ A controller to test HTTP Basic authentication.
+        DEPRECATED: Use /inouk/api_auth/v2/token/status instead
+        """
+        _logger.info("received args: %s", args )
+        _logger.info("received kwargs: %s", kwargs )
+
+        # Access token object stored by the authentication method
+        token_obj = getattr(request, 'inouk_token_obj', None)
+        if token_obj:
+            return "HTTP Basic test successful! Token: %s (User: %s)\nUsername: %s\n" % (
+                token_obj.name,
+                token_obj.user_id.name,
+                token_obj.httpbasicauth_username
+            )
+        else:
+            return "HTTP Basic test failed - no token object found.\n"
+
+    @route(TOKEN_STATUS_CONTROLLER_URL + '/bearer', methods=['GET'], type='http', auth='ik_bearer', csrf=False, save_session=False)
+    def token_status_bearer(self, *args, **kwargs):
+        """Token status for Bearer/X-Gitlab-Token authentication"""
+        import json
+        from odoo.http import Response
+        result = self._token_status_unified(*args, **kwargs)
+        return Response(json.dumps(result), content_type='application/json')
+
+    @route(TOKEN_STATUS_CONTROLLER_URL + '/awssigv4', methods=['GET'], type='http', auth='ik_awssigv4', csrf=False, save_session=False)
+    def token_status_awssigv4(self, *args, **kwargs):
+        """Token status for AWS SigV4 authentication"""
+        import json
+        from odoo.http import Response
+        result = self._token_status_unified(*args, **kwargs)
+        return Response(json.dumps(result), content_type='application/json')
+
+    @route(TOKEN_STATUS_CONTROLLER_URL + '/httpbasic', methods=['GET'], type='http', auth='ik_httpbasicauth', csrf=False, save_session=False)
+    def token_status_httpbasic(self, *args, **kwargs):
+        """Token status for HTTP Basic authentication"""
+        import json
+        from odoo.http import Response
+        result = self._token_status_unified(*args, **kwargs)
+        return Response(json.dumps(result), content_type='application/json')
+
+    def _token_status_unified(self, *args, **kwargs):
+        """ Unified token status checker for all authentication methods.
+
+        Returns comprehensive token information in JSON format.
+        Supports all authentication methods: Bearer, AWS SigV4, HTTP Basic.
+        """
+        _logger.info("Token status check - received args: %s", args)
+        _logger.info("Token status check - received kwargs: %s", kwargs)
+
+        # Get auth context created by authentication method
+        auth_context = getattr(request, 'inouk_api_auth', None)
+        if not auth_context:
+            return {
+                'error': 'Authentication failed',
+                'message': 'No valid authentication context found',
+                'status': 'failed'
+            }
+
+        try:
+            return {
+                'status': self._get_token_status_from_context(auth_context),
+                'token': self._get_token_info_from_context(auth_context),
+                'auth_method': self._get_auth_method_from_context(auth_context),
+                'request_info': self._get_request_info_from_context(auth_context)
+            }
+        except Exception as e:
+            _logger.error("Error generating token status: %s", e)
+            return {
+                'error': 'Internal error',
+                'message': 'Failed to generate token status',
+                'status': 'error'
+            }
+
+    def _get_token_status_from_context(self, auth_context):
+        """Get overall token status from auth context"""
+        if auth_context.get('is_compromised'):
+            return 'compromised'
+        elif auth_context.get('is_expired'):
+            return 'expired'
+        else:
+            return 'active'
+
+    def _get_token_info_from_context(self, auth_context):
+        """Get safe token information from auth context"""
+        token_obj = auth_context.get('token')
+        if not token_obj:
+            return {}
+
+        token_info = {
+            'name': auth_context.get('token_name'),
+            'type': auth_context.get('token_type'),
+            'user': auth_context.get('user_name'),
+            'created': token_obj.create_date.isoformat() if token_obj.create_date else None,
+            'is_compromised': auth_context.get('is_compromised'),
+            'enforce_https': auth_context.get('enforce_integrity'),
+            'description': token_obj.description or None
+        }
+
+        # Add expiration info if set
+        if token_obj.expiration_ts:
+            token_info['expires'] = token_obj.expiration_ts.isoformat()
+            now = fields.Datetime.now()
+            if token_obj.expiration_ts > now:
+                delta = token_obj.expiration_ts - now
+                token_info['expires_in_days'] = delta.days
+                token_info['expires_in_hours'] = delta.total_seconds() / 3600
+            else:
+                token_info['expires_in_days'] = 0
+                token_info['expires_in_hours'] = 0
+
+        return token_info
+
+    def _get_auth_method_from_context(self, auth_context):
+        """Get authentication method specific information from auth context"""
+        auth_details = auth_context.get('auth_details', {})
+        token_type = auth_context.get('token_type')
+
+        auth_info = {'type': token_type}
+
+        if token_type == 'awssigv4':
+            auth_info.update({
+                'access_key_id': auth_details.get('access_key_id'),
+                'region': auth_details.get('region', 'N/A'),
+                'service': auth_details.get('service', 'N/A'),
+                'algorithm': auth_details.get('algorithm')
+            })
+        elif token_type == 'httpbasicauth':
+            auth_info.update({
+                'username': auth_details.get('username'),
+                'encoding': auth_details.get('encoding')
+            })
+        elif token_type in ['bearer', 'xgitlabtoken']:
+            auth_info.update({
+                'header_type': auth_details.get('header_type'),
+                'token_source': auth_details.get('token_source')
+            })
+
+        return auth_info
+
+    def _get_request_info_from_context(self, auth_context):
+        """Get safe request information from auth context"""
+        request_source = auth_context.get('request_source', {})
+
+        return {
+            'authenticated_at': auth_context.get('authenticated_at'),
+            'remote_ip': request_source.get('remote_ip', 'unknown'),
+            'via': request_source.get('via'),
+            'proxy_chain': request_source.get('proxy_chain', []),
+            'proxy_type': request_source.get('proxy_type'),
+            'using_https': request_source.get('is_https'),
+            'user_agent': request_source.get('user_agent', 'unknown'),
+            'referer': request_source.get('referer')
+        }
 

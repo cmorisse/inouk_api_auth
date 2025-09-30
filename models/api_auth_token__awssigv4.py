@@ -4,7 +4,7 @@ from urllib.parse import urljoin
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 
-from ..controllers.auth import TOKEN_STATUS_AWSSIGV4_URL
+from ..controllers.auth import TOKEN_STATUS_CONTROLLER_URL
 from .awssigv4_helper import generate_aws_credentials, generate_signed_curl_command
 
 _logger = logging.getLogger(__name__)
@@ -43,17 +43,8 @@ class InoukAPIAuthToken(models.Model):
                 'awssigv4_secret_access_key': secret_access_key,
             })
 
-            # Return a notification with the credentials
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': 'AWS SigV4 Credentials Generated',
-                    'message': f'<strong>Access Key ID:</strong> {access_key_id}<br/><strong>Secret Access Key:</strong> {secret_access_key}<br/><br/><span style="color: #ff6b35;">⚠️ Save these credentials immediately - they cannot be retrieved later!</span>',
-                    'type': 'warning',
-                    'sticky': True,
-                }
-            }
+            # NO notification - just update the fields
+            return True
         else:
             return super().btn_regenerate_credentials()
 
@@ -68,21 +59,22 @@ class InoukAPIAuthToken(models.Model):
         if not _base_url:
             return "# Configure web.base.url first"
 
-        awssigv4_url = urljoin(_base_url, TOKEN_STATUS_AWSSIGV4_URL)
+        awssigv4_url = urljoin(_base_url, TOKEN_STATUS_CONTROLLER_URL + '/awssigv4')
 
-        return generate_signed_curl_command(
-            url=awssigv4_url,
-            access_key_id=self.awssigv4_access_key_id,
-            secret_access_key=self.awssigv4_secret_access_key,
-            region='us-east-1',  # Default region
-            service='execute-api'  # Default service
-        )
+        # Generate curl command with environment variables
+        return f"""# Set environment variables:
+# export AWS_ACCESS_KEY_ID="your_access_key_here"
+# export AWS_SECRET_ACCESS_KEY="your_secret_key_here"
+
+# Note: This requires manual AWS SigV4 signing. Consider using AWS CLI or SDK instead.
+# Example with AWS CLI:
+aws apigateway test-invoke-method --rest-api-id YOUR_API_ID --resource-id YOUR_RESOURCE_ID --http-method GET"""
 
     def compute__test_curl(self):
         """Override to handle AWS SigV4 cURL generation"""
         for record in self:
             if record.token_type == 'awssigv4':
-                record.hello_curl = record.compute__awssigv4_test_curl()
+                record.test_curl_helper = record.compute__awssigv4_test_curl()
             else:
                 super().compute__test_curl()
 
@@ -100,15 +92,27 @@ class InoukAPIAuthToken(models.Model):
 
                     access_key = record.awssigv4_access_key_id
                     secret_key = record.awssigv4_secret_access_key
-                    awssigv4_status_url = urljoin(_base_url, TOKEN_STATUS_AWSSIGV4_URL)
+                    awssigv4_status_url = urljoin(_base_url, TOKEN_STATUS_CONTROLLER_URL + '/awssigv4')
 
                     examples_html = f"""
                     <div style='padding: 10px; font-family: monospace;'>
                     <h3 style='color: #2e7bcf; margin-bottom: 15px;'>AWS Signature Version 4 Authentication</h3>
 
+                    <div style='background: #e3f2fd; padding: 15px; border-radius: 5px; border-left: 4px solid #2196f3; margin-bottom: 15px;'>
+                        <strong>📋 Setup Instructions:</strong><br/>
+                        1. Copy your AWS credentials from the form fields above<br/>
+                        2. Set environment variables:<br/>
+                        <code>export AWS_ACCESS_KEY_ID="your_access_key_here"</code><br/>
+                        <code>export AWS_SECRET_ACCESS_KEY="your_secret_key_here"</code><br/>
+                        3. Never commit credentials to version control<br/>
+                        4. Use .env files for local development (with python-dotenv)<br/>
+                        5. Consider using IAM roles when possible
+                    </div>
+
                     <div style='background: #ffe0b2; padding: 15px; border-radius: 5px; border-left: 4px solid #ff9800; margin-bottom: 15px;'>
-                        <strong>⚠️ Security Note:</strong> AWS credentials are only shown once when generated.
-                        Store them securely - they cannot be retrieved later (only regenerated).
+                        <strong>⚠️ Security Best Practice:</strong>
+                        Always use environment variables for AWS credentials. Never hardcode them in your scripts.
+                        The examples below use environment variables to keep your credentials secure.
                     </div>
 
                     <h4 style='color: #666; margin-bottom: 10px;'>Installation Required</h4>
@@ -116,12 +120,17 @@ class InoukAPIAuthToken(models.Model):
 pip install requests-aws4auth</code></pre>
 
                     <h4 style='color: #666; margin-bottom: 10px; margin-top: 20px;'>Method 1: Using requests-aws4auth Library</h4>
-                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #2e7bcf; overflow-x: auto;'><code style='color: #333;'>import requests
+                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #2e7bcf; overflow-x: auto;'><code style='color: #333;'>import os
+import requests
 from requests_aws4auth import AWS4Auth
 
-# AWS Credentials
-access_key_id = '{access_key}'
-secret_access_key = '{secret_key}'
+# Load AWS credentials from environment variables
+access_key_id = os.environ.get('AWS_ACCESS_KEY_ID')
+secret_access_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+if not access_key_id or not secret_access_key:
+    raise ValueError("Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables")
+
+# AWS configuration
 region = 'us-east-1'  # You can change this
 service = 'execute-api'  # You can change this
 
@@ -149,12 +158,19 @@ else:
     print(f"❌ Authentication failed: {{response.text}}")</code></pre>
 
                     <h4 style='color: #666; margin-bottom: 10px; margin-top: 20px;'>Method 2: POST Request with JSON Data</h4>
-                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #4caf50; overflow-x: auto;'><code style='color: #333;'>import requests
+                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #4caf50; overflow-x: auto;'><code style='color: #333;'>import os
+import requests
 import json
 from requests_aws4auth import AWS4Auth
 
+# Load AWS credentials from environment variables
+access_key_id = os.environ.get('AWS_ACCESS_KEY_ID')
+secret_access_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+if not access_key_id or not secret_access_key:
+    raise ValueError("Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY environment variables")
+
 # Setup authentication
-auth = AWS4Auth('{access_key}', '{secret_key}', 'us-east-1', 'execute-api')
+auth = AWS4Auth(access_key_id, secret_access_key, 'us-east-1', 'execute-api')
 
 # Your API endpoint
 url = "{_base_url}/your/api/endpoint"
@@ -177,13 +193,27 @@ if response.status_code == 200:
 else:
     print(f"Error: {{response.status_code}} - {{response.text}}")</code></pre>
 
-                    <h4 style='color: #666; margin-bottom: 10px; margin-top: 20px;'>Method 3: Manual Signature (Advanced)</h4>
-                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #9c27b0; overflow-x: auto;'><code style='color: #333;'># For advanced users who want to implement signing manually
-# This is automatically handled by requests-aws4auth library
-# See AWS SigV4 documentation for manual implementation details
+                    <h4 style='color: #666; margin-bottom: 10px; margin-top: 20px;'>Method 3: Using boto3 (AWS SDK)</h4>
+                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #9c27b0; overflow-x: auto;'><code style='color: #333;'># Alternative: Use AWS SDK (boto3) which handles credentials automatically
+import boto3
+from botocore.auth import SigV4Auth
+from botocore.awsrequest import AWSRequest
+import requests
 
-# Current auto-generated signed curl command:
-# {record.hello_curl if hasattr(record, 'hello_curl') else 'Generate AWS keys to see curl example'}</code></pre>
+# boto3 automatically loads from ENV vars or ~/.aws/credentials
+session = boto3.Session()
+credentials = session.get_credentials()
+region = 'us-east-1'
+service = 'execute-api'
+
+# Create signed request
+url = "{awssigv4_status_url}"
+request = AWSRequest(method='GET', url=url)
+SigV4Auth(credentials, service, region).add_auth(request)
+
+# Execute request
+response = requests.get(url, headers=dict(request.headers))
+print(f"Status: {{response.status_code}}")</code></pre>
 
                     <div style='margin-top: 30px; padding: 15px; background: #e8f5e8; border-radius: 5px; border-left: 4px solid #4caf50;'>
                         <h4 style='color: #2e7d32; margin-bottom: 10px;'>💡 Tips for Production Use</h4>

@@ -4,7 +4,6 @@ import logging
 
 from odoo import models, fields
 from odoo.http import request, AuthenticationError
-from werkzeug.security import check_password_hash
 
 _logger = logging.getLogger(__name__)
 
@@ -60,12 +59,12 @@ class IrHttpBasic(models.AbstractModel):
                           token_obj.name, token_obj.id, token_obj.expiration_ts)
             raise AuthenticationError("Invalid credentials.")
 
-        # Validate password against stored hash
-        if not token_obj.httpbasicauth_password_hash:
-            _logger.warning("HTTP Basic authentication failed - no password hash for token %s", token_obj.name)
+        # Validate password against stored password
+        if not token_obj.httpbasicauth_password:
+            _logger.warning("HTTP Basic authentication failed - no password for token %s", token_obj.name)
             raise AuthenticationError("Invalid credentials.")
 
-        if not check_password_hash(token_obj.httpbasicauth_password_hash, password):
+        if token_obj.httpbasicauth_password != password:
             _logger.warning("HTTP Basic authentication failed - invalid password for username: %s", username)
             raise AuthenticationError("Invalid credentials.")
 

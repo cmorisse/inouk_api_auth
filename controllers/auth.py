@@ -8,7 +8,7 @@ import logging
 import werkzeug.wrappers
 
 from odoo import fields
-from odoo.http import request, route, Controller, AuthenticationError
+from odoo.http import Response, request, route, Controller, AuthenticationError
 from odoo.tools.safe_eval import safe_eval
 
 #from odoo.addons.muppy_core.api import MpyException, MpyAPIException, mpy_execute
@@ -23,14 +23,8 @@ _logger = logging.getLogger(__name__)
 from ..api import ik_authorize
 
 TEST_CONTROLLER_URL = '/inouk/api_auth/v1/hello'
-TEST_CONTROLLER_V2_URL = '/inouk/api_auth/v2/hello'
-AWSSIGV4_TEST_CONTROLLER_URL = '/inouk/api_auth/v2/awssigv4_test'
-HTTPBASIC_TEST_CONTROLLER_URL = '/inouk/api_auth/v2/httpbasic_test'
 # Base URL for unified token status endpoints
 TOKEN_STATUS_CONTROLLER_URL = '/inouk/api_auth/v2/token/status'
-TOKEN_STATUS_BEARER_URL = TOKEN_STATUS_CONTROLLER_URL + '/bearer'
-TOKEN_STATUS_AWSSIGV4_URL = TOKEN_STATUS_CONTROLLER_URL + '/awssigv4'
-TOKEN_STATUS_HTTPBASIC_URL = TOKEN_STATUS_CONTROLLER_URL + '/httpbasic'
 
 # Important
 # All route() must set save_session=False to prevent Odoo from returning a session_id cookie.
@@ -47,71 +41,21 @@ class InoukAPIAuthControllerV1(Controller):
         _logger.info("received kwargs: %s", kwargs )
         return "Hello ! Call Ok. Received %s\n" % kwargs['token_obj']
 
-    @route(AWSSIGV4_TEST_CONTROLLER_URL, methods=['GET'], type='http', auth='ik_awssigv4', csrf=False, save_session=False)
-    def awssigv4_test(self, *args, **kwargs):
-        """ A controller to test AWS Signature Version 4 authentication.
-        DEPRECATED: Use /inouk/api_auth/v2/token/status/awssigv4 instead
-        """
-        _logger.info("received args: %s", args )
-        _logger.info("received kwargs: %s", kwargs )
-
-        # Access token object stored by the authentication method
-        token_obj = getattr(request, 'inouk_token_obj', None)
-        if token_obj:
-            # Get region and service from request (stored during authentication)
-            region = getattr(request, 'awssigv4_region', 'N/A')
-            service = getattr(request, 'awssigv4_service', 'N/A')
-
-            return "AWS SigV4 test successful! Token: %s (User: %s)\nAccess Key ID: %s\nRegion: %s\nService: %s\n" % (
-                token_obj.name,
-                token_obj.user_id.name,
-                token_obj.awssigv4_access_key_id,
-                region,
-                service
-            )
-        else:
-            return "AWS SigV4 test failed - no token object found.\n"
-
-    @route(HTTPBASIC_TEST_CONTROLLER_URL, methods=['GET'], type='http', auth='ik_httpbasicauth', csrf=False, save_session=False)
-    def httpbasic_test(self, *args, **kwargs):
-        """ A controller to test HTTP Basic authentication.
-        DEPRECATED: Use /inouk/api_auth/v2/token/status instead
-        """
-        _logger.info("received args: %s", args )
-        _logger.info("received kwargs: %s", kwargs )
-
-        # Access token object stored by the authentication method
-        token_obj = getattr(request, 'inouk_token_obj', None)
-        if token_obj:
-            return "HTTP Basic test successful! Token: %s (User: %s)\nUsername: %s\n" % (
-                token_obj.name,
-                token_obj.user_id.name,
-                token_obj.httpbasicauth_username
-            )
-        else:
-            return "HTTP Basic test failed - no token object found.\n"
-
     @route(TOKEN_STATUS_CONTROLLER_URL + '/bearer', methods=['GET'], type='http', auth='ik_bearer', csrf=False, save_session=False)
     def token_status_bearer(self, *args, **kwargs):
         """Token status for Bearer/X-Gitlab-Token authentication"""
-        import json
-        from odoo.http import Response
         result = self._token_status_unified(*args, **kwargs)
         return Response(json.dumps(result), content_type='application/json')
 
     @route(TOKEN_STATUS_CONTROLLER_URL + '/awssigv4', methods=['GET'], type='http', auth='ik_awssigv4', csrf=False, save_session=False)
     def token_status_awssigv4(self, *args, **kwargs):
         """Token status for AWS SigV4 authentication"""
-        import json
-        from odoo.http import Response
         result = self._token_status_unified(*args, **kwargs)
         return Response(json.dumps(result), content_type='application/json')
 
     @route(TOKEN_STATUS_CONTROLLER_URL + '/httpbasic', methods=['GET'], type='http', auth='ik_httpbasicauth', csrf=False, save_session=False)
     def token_status_httpbasic(self, *args, **kwargs):
         """Token status for HTTP Basic authentication"""
-        import json
-        from odoo.http import Response
         result = self._token_status_unified(*args, **kwargs)
         return Response(json.dumps(result), content_type='application/json')
 

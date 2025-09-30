@@ -9,11 +9,16 @@
 Token-based API authentication system for Odoo controllers.
 
 Features:
-* Bearer Token and X-Gitlab-Token support
+* Flexible Header-Based Token authentication (NEW)
+* Bearer Token and X-Gitlab-Token support (legacy compatibility)
+* Configurable headers (Authorization, X-API-Key, X-Auth-Token, custom)
+* Configurable URL parameters (access_token, api_key, token, custom)
+* Service presets for quick setup (OAuth2, GitLab, API Keys)
 * HTTPS integrity enforcement
 * Token expiration management
 * Security audit logging
-* New auth='ik_bearer' authentication method
+* New auth='ik_header' authentication method
+* Legacy auth='ik_bearer' compatibility
 * Legacy @ik_authorize decorator support (deprecated)
 """,
 
@@ -44,9 +49,6 @@ Features:
         'security/ir.model.access.csv',
         #'security/groups.xml',
         #'security/ir_rule.xml',
-
-        # Wizards (defined before views that referenced them)
-        'wizards/httpbasic_credentials_wizard_view.xml',
 
         # views
         'views/api_auth_token_views.xml',

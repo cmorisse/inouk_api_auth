@@ -33,10 +33,26 @@ class IrHttpAwsSigV4(models.AbstractModel):
         if not auth_header.startswith('AWS4-HMAC-SHA256'):
             raise AuthenticationError("Missing or invalid AWS4-HMAC-SHA256 Authorization header.")
 
-        # Extract access key ID from Authorization header
+        # Parse the Authorization header components
         # Format: AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-date, Signature=...
+        parsed_auth = {'Algorithm': 'AWS4-HMAC-SHA256'}  # Default algorithm
+
+        # Extract each component from the Authorization header
+        if 'Credential=' in auth_header:
+            parsed_auth['Credential'] = auth_header.split('Credential=')[1].split(',')[0].strip()
+
+        if 'SignedHeaders=' in auth_header:
+            parsed_auth['SignedHeaders'] = auth_header.split('SignedHeaders=')[1].split(',')[0].strip()
+
+        if 'Signature=' in auth_header:
+            # Signature is the last component, no comma after it
+            parsed_auth['Signature'] = auth_header.split('Signature=')[1].strip()
+
+        # Extract access key ID from the Credential component
         try:
-            credential_part = auth_header.split('Credential=')[1].split(',')[0]
+            credential_part = parsed_auth.get('Credential', '')
+            if not credential_part:
+                raise AuthenticationError("Missing Credential in Authorization header.")
             access_key_id = credential_part.split('/')[0]
             _logger.info("AWS SigV4 auth - Extracted access key ID: %s", access_key_id)
             _logger.info("AWS SigV4 auth - Credential part: %s", credential_part)
@@ -117,7 +133,7 @@ class IrHttpAwsSigV4(models.AbstractModel):
             'service': service,
             'access_key_id': token_obj.awssigv4_access_key_id,
             'algorithm': parsed_auth.get('Algorithm', 'AWS4-HMAC-SHA256'),
-            'credential_scope': parsed_auth.get('Credential', '').split('/', 1)[1] if '/' in parsed_auth.get('Credential', '') else None
+            'credential_scope': credential_part.split('/', 1)[1] if '/' in credential_part else None
         }
 
         # Build and store complete auth context

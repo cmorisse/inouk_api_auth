@@ -5,7 +5,7 @@ from urllib.parse import urljoin
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
 
-from ..controllers.auth import TOKEN_STATUS_BEARER_URL
+from ..controllers.auth import TOKEN_STATUS_CONTROLLER_URL
 
 _logger = logging.getLogger(__name__)
 
@@ -28,18 +28,8 @@ class InoukAPIAuthToken(models.Model):
         if self.token_type == 'bearer':
             # Generate standard hex token
             self.static_token = secrets.token_hex(30)
-
-            # Return a notification with the token
-            return {
-                'type': 'ir.actions.client',
-                'tag': 'display_notification',
-                'params': {
-                    'title': 'Bearer Token Generated',
-                    'message': f'<strong>Token:</strong> {self.static_token}<br/><br/><span style="color: #ff6b35;">⚠️ Save this token immediately - it cannot be retrieved later!</span>',
-                    'type': 'warning',
-                    'sticky': True,
-                }
-            }
+            # NO notification - just update the field
+            return True
         else:
             return super().btn_regenerate_credentials()
 
@@ -54,18 +44,18 @@ class InoukAPIAuthToken(models.Model):
         if not _base_url:
             return "# Configure web.base.url first"
 
-        token_status_url = urljoin(_base_url, TOKEN_STATUS_BEARER_URL)
+        token_status_url = urljoin(_base_url, TOKEN_STATUS_CONTROLLER_URL + '/bearer')
 
         if self.test_use_header:
-            return f"curl --header 'Authorization: Bearer {self.static_token}' '{token_status_url}'"
+            return f'# Set environment variable:\n# export BEARER_TOKEN="your_token_here"\n\ncurl --header "Authorization: Bearer $BEARER_TOKEN" "{token_status_url}"'
         else:
-            return f"curl '{token_status_url}?access_token={self.static_token}'"
+            return f'# Set environment variable:\n# export BEARER_TOKEN="your_token_here"\n\ncurl "{token_status_url}?access_token=$BEARER_TOKEN"'
 
     def compute__test_curl(self):
         """Override to handle Bearer token cURL generation"""
         for record in self:
             if record.token_type == 'bearer':
-                record.hello_curl = record.compute__bearer_test_curl()
+                record.test_curl_helper = record.compute__bearer_test_curl()
             else:
                 super().compute__test_curl()
 
@@ -77,29 +67,41 @@ class InoukAPIAuthToken(models.Model):
                 if not _base_url:
                     record.python_examples = "<div style='padding: 20px; color: #666;'><i>Configure web.base.url system parameter to see examples</i></div>"
                 else:
-                    token_value = record.static_token or 'YOUR_TOKEN_HERE'
-                    bearer_status_url = urljoin(_base_url, TOKEN_STATUS_BEARER_URL)
-
-                    header_name = 'Authorization'
-                    header_value = f'Bearer {token_value}'
+                    bearer_status_url = urljoin(_base_url, TOKEN_STATUS_CONTROLLER_URL + '/bearer')
                     title = "Bearer Token Authentication"
 
                     examples_html = f"""
                     <div style='padding: 10px; font-family: monospace;'>
                     <h3 style='color: #2e7bcf; margin-bottom: 15px;'>{title}</h3>
 
+                    <div style='background: #e3f2fd; padding: 15px; border-radius: 5px; border-left: 4px solid #2196f3; margin-bottom: 15px;'>
+                        <strong>📋 Setup Instructions:</strong><br/>
+                        1. Copy your token from the form field above<br/>
+                        2. Set environment variable:<br/>
+                        <code>export BEARER_TOKEN="your_token_here"</code><br/>
+                        3. Never commit credentials to version control<br/>
+                        4. Use .env files for local development (with python-dotenv)
+                    </div>
+
                     <div style='background: #ffe0b2; padding: 15px; border-radius: 5px; border-left: 4px solid #ff9800; margin-bottom: 15px;'>
-                        <strong>⚠️ Security Note:</strong> Bearer tokens are only shown once when generated.
-                        Store them securely - they cannot be retrieved later (only regenerated).
+                        <strong>⚠️ Security Best Practice:</strong>
+                        Always use environment variables for credentials. Never hardcode them in your scripts.
+                        The examples below use environment variables to keep your credentials secure.
                     </div>
 
                     <h4 style='color: #666; margin-bottom: 10px;'>Method 1: Header Authentication (Recommended)</h4>
-                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #2e7bcf; overflow-x: auto;'><code style='color: #333;'>import requests
+                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #2e7bcf; overflow-x: auto;'><code style='color: #333;'>import os
+import requests
+
+# Load token from environment variable
+token = os.environ.get('BEARER_TOKEN')
+if not token:
+    raise ValueError("Please set BEARER_TOKEN environment variable")
 
 # Unified token status endpoint (JSON response)
 url = "{bearer_status_url}"
 headers = {{
-    '{header_name}': '{header_value}'
+    'Authorization': f'Bearer {{token}}'
 }}
 
 response = requests.get(url, headers=headers)
@@ -118,12 +120,18 @@ else:
     print(f"❌ Authentication failed: {{response.text}}")</code></pre>
 
                     <h4 style='color: #666; margin-bottom: 10px; margin-top: 20px;'>Method 2: URL Parameter (Less Secure)</h4>
-                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #ff9800; overflow-x: auto;'><code style='color: #333;'>import requests
+                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #ff9800; overflow-x: auto;'><code style='color: #333;'>import os
+import requests
+
+# Load token from environment variable
+token = os.environ.get('BEARER_TOKEN')
+if not token:
+    raise ValueError("Please set BEARER_TOKEN environment variable")
 
 # ⚠️  Note: URL parameters are less secure (visible in logs)
 url = "{bearer_status_url}"
 params = {{
-    'access_token': '{token_value}'
+    'access_token': token
 }}
 
 response = requests.get(url, params=params)
@@ -131,13 +139,19 @@ print(f"Status: {{response.status_code}}")
 print(f"Response: {{response.text}}")</code></pre>
 
                     <h4 style='color: #666; margin-bottom: 10px; margin-top: 20px;'>Method 3: POST Request Example</h4>
-                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #4caf50; overflow-x: auto;'><code style='color: #333;'>import requests
+                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #4caf50; overflow-x: auto;'><code style='color: #333;'>import os
+import requests
 import json
+
+# Load token from environment variable
+token = os.environ.get('BEARER_TOKEN')
+if not token:
+    raise ValueError("Please set BEARER_TOKEN environment variable")
 
 # For your actual API endpoints
 url = "{_base_url}/your/api/endpoint"
 headers = {{
-    '{header_name}': '{header_value}',
+    'Authorization': f'Bearer {{token}}',
     'Content-Type': 'application/json'
 }}
 

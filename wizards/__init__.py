@@ -1,1 +1,1 @@
-from . import httpbasic_credentials_wizard
+# Wizards module - currently empty

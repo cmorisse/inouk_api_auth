@@ -5,9 +5,8 @@ from urllib.parse import urljoin
 
 from odoo import api, fields, models, _
 from odoo.exceptions import UserError
-from werkzeug.security import generate_password_hash
 
-from ..controllers.auth import TOKEN_STATUS_HTTPBASIC_URL
+from ..controllers.auth import TOKEN_STATUS_CONTROLLER_URL
 
 _logger = logging.getLogger(__name__)
 
@@ -35,60 +34,49 @@ class InoukAPIAuthToken(models.Model):
         string="HTTP Basic Username",
         help="Username for HTTP Basic Authentication"
     )
-    httpbasicauth_password_hash = fields.Char(
-        string="HTTP Basic Password Hash",
-        help="Hashed password for HTTP Basic Authentication (not stored in plain text)"
+    httpbasicauth_password = fields.Char(
+        string="HTTP Basic Password",
+        help="Password for HTTP Basic Authentication"
     )
 
-    # Note: Temporary fields for password management have been removed
-    # Password management is now handled through the credentials wizard
-
-    # Temporary field compute methods removed - wizard handles password management
-
     def btn_regenerate_credentials(self):
-        """Launch wizard for HTTP Basic credential generation"""
+        """Regenerate HTTP Basic credentials inline"""
         self.ensure_one()
 
         if self.token_type == 'httpbasicauth':
-            # Create wizard instance with current token context
-            wizard = self.env['ik.httpbasic_credentials_wizard'].create({
-                'token_id': self.id,
-                'username': self.httpbasicauth_username or '',
-            })
+            # Generate username if empty
+            if not self.httpbasicauth_username:
+                self.httpbasicauth_username = f"user_{secrets.token_hex(8)}"
 
-            return {
-                'name': 'Generate HTTP Basic Credentials',
-                'type': 'ir.actions.act_window',
-                'res_model': 'ik.httpbasic_credentials_wizard',
-                'view_mode': 'form',
-                'res_id': wizard.id,
-                'target': 'new',
-                'context': {'default_token_id': self.id}
-            }
+            # Always generate new password
+            self.httpbasicauth_password = secrets.token_hex(16)
+
+            # NO notification - just update the fields
+            return True
         else:
             return super().btn_regenerate_credentials()
 
     def compute__httpbasicauth_test_curl(self):
         """Generate HTTP Basic auth curl command for testing"""
         self.ensure_one()
-        if not self.httpbasicauth_username:
-            return "# Generate HTTP Basic credentials first using the wizard"
+        if not self.httpbasicauth_username or not self.httpbasicauth_password:
+            return "# Generate HTTP Basic credentials first"
 
         # Use unified token status URL for HTTP Basic auth
         _base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
         if not _base_url:
             return "# Configure web.base.url first"
 
-        httpbasic_url = urljoin(_base_url, TOKEN_STATUS_HTTPBASIC_URL)
+        httpbasic_url = urljoin(_base_url, TOKEN_STATUS_CONTROLLER_URL + '/httpbasic')
 
-        # Since passwords are not stored in plain text, show template with placeholder
-        return f"curl --user '{self.httpbasicauth_username}:YOUR_PASSWORD' '{httpbasic_url}'"
+        # Use environment variables for credentials
+        return f"# Set environment variables:\\n# export HTTPBASIC_USERNAME=\"your_username_here\"\\n# export HTTPBASIC_PASSWORD=\"your_password_here\"\\n\\ncurl --user \"$HTTPBASIC_USERNAME:$HTTPBASIC_PASSWORD\" \"{httpbasic_url}\""
 
     def compute__test_curl(self):
         """Override to handle HTTP Basic auth cURL generation"""
         for record in self:
             if record.token_type == 'httpbasicauth':
-                record.hello_curl = record.compute__httpbasicauth_test_curl()
+                record.test_curl_helper = record.compute__httpbasicauth_test_curl()
             else:
                 super().compute__test_curl()
 
@@ -96,7 +84,7 @@ class InoukAPIAuthToken(models.Model):
         """Generate Python requests examples for HTTP Basic authentication"""
         for record in self:
             if record.token_type == 'httpbasicauth':
-                if not record.httpbasicauth_username:
+                if not record.httpbasicauth_username or not record.httpbasicauth_password:
                     record.python_examples = "<div style='padding: 20px; color: #ff9800;'><i>Generate HTTP Basic credentials first to see examples</i></div>"
                 else:
                     _base_url = self.env['ir.config_parameter'].sudo().get_param('web.base.url')
@@ -105,28 +93,39 @@ class InoukAPIAuthToken(models.Model):
                         continue
 
                     username = record.httpbasicauth_username
-                    httpbasic_url = urljoin(_base_url, TOKEN_STATUS_HTTPBASIC_URL)
-
-                    # Since passwords are not stored in plain text, always show placeholder
-                    password_value = 'YOUR_PASSWORD_HERE'
-                    password_note = "Use the password from the credentials wizard"
+                    password = record.httpbasicauth_password
+                    httpbasic_url = urljoin(_base_url, TOKEN_STATUS_CONTROLLER_URL + '/httpbasic')
 
                     examples_html = f"""
                     <div style='padding: 10px; font-family: monospace;'>
                     <h3 style='color: #2e7bcf; margin-bottom: 15px;'>HTTP Basic Authentication</h3>
 
+                    <div style='background: #e3f2fd; padding: 15px; border-radius: 5px; border-left: 4px solid #2196f3; margin-bottom: 15px;'>
+                        <strong>📋 Setup Instructions:</strong><br/>
+                        1. Copy your username and password from the form fields above<br/>
+                        2. Set environment variables:<br/>
+                        <code>export HTTPBASIC_USERNAME="your_username_here"</code><br/>
+                        <code>export HTTPBASIC_PASSWORD="your_password_here"</code><br/>
+                        3. Never commit credentials to version control<br/>
+                        4. Use .env files for local development (with python-dotenv)
+                    </div>
+
                     <div style='background: #ffe0b2; padding: 15px; border-radius: 5px; border-left: 4px solid #ff9800; margin-bottom: 15px;'>
-                        <strong>⚠️ Password Security Note:</strong> The password is only shown once when credentials are generated.
-                        Store it securely - it cannot be retrieved later (only regenerated).
+                        <strong>⚠️ Security Best Practice:</strong>
+                        Always use environment variables for credentials. Never hardcode them in your scripts.
+                        The examples below use environment variables to keep your credentials secure.
                     </div>
 
                     <h4 style='color: #666; margin-bottom: 10px;'>Method 1: Using requests.auth.HTTPBasicAuth</h4>
-                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #2e7bcf; overflow-x: auto;'><code style='color: #333;'>import requests
+                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #2e7bcf; overflow-x: auto;'><code style='color: #333;'>import os
+import requests
 from requests.auth import HTTPBasicAuth
 
-# HTTP Basic credentials
-username = '{username}'
-password = '{password_value}'  # {password_note}
+# Load credentials from environment variables
+username = os.environ.get('HTTPBASIC_USERNAME')
+password = os.environ.get('HTTPBASIC_PASSWORD')
+if not username or not password:
+    raise ValueError("Please set HTTPBASIC_USERNAME and HTTPBASIC_PASSWORD environment variables")
 
 # Unified token status endpoint (JSON response)
 url = "{httpbasic_url}"
@@ -149,12 +148,15 @@ else:
     print(f"❌ Authentication failed: {{response.text}}")</code></pre>
 
                     <h4 style='color: #666; margin-bottom: 10px; margin-top: 20px;'>Method 2: Manual Authorization Header</h4>
-                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #4caf50; overflow-x: auto;'><code style='color: #333;'>import requests
+                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #4caf50; overflow-x: auto;'><code style='color: #333;'>import os
+import requests
 import base64
 
-# HTTP Basic credentials
-username = '{username}'
-password = '{password_value}'
+# Load credentials from environment variables
+username = os.environ.get('HTTPBASIC_USERNAME')
+password = os.environ.get('HTTPBASIC_PASSWORD')
+if not username or not password:
+    raise ValueError("Please set HTTPBASIC_USERNAME and HTTPBASIC_PASSWORD environment variables")
 
 # Manually create Authorization header
 credentials = f"{{username}}:{{password}}"
@@ -176,11 +178,18 @@ else:
     print(f"Response: {{response.text}}")</code></pre>
 
                     <h4 style='color: #666; margin-bottom: 10px; margin-top: 20px;'>Method 3: POST Request with JSON Data</h4>
-                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #9c27b0; overflow-x: auto;'><code style='color: #333;'>import requests
+                    <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #9c27b0; overflow-x: auto;'><code style='color: #333;'>import os
+import requests
 from requests.auth import HTTPBasicAuth
 
+# Load credentials from environment variables
+username = os.environ.get('HTTPBASIC_USERNAME')
+password = os.environ.get('HTTPBASIC_PASSWORD')
+if not username or not password:
+    raise ValueError("Please set HTTPBASIC_USERNAME and HTTPBASIC_PASSWORD environment variables")
+
 # Setup authentication
-auth = HTTPBasicAuth('{username}', '{password_value}')
+auth = HTTPBasicAuth(username, password)
 
 # Your API endpoint
 url = "{_base_url}/your/api/endpoint"

@@ -66,9 +66,11 @@ class IrHttpBearer(models.AbstractModel):
             static_token = token_string.strip()
 
         # Search for token in database (single search, no validity filters)
+        # Bearer and X-Gitlab-Token are unified - search for both types
+        # Include 'header' type for backward compatibility
         token_obj = request.env['ik.api_auth_token'].sudo().search([
             ('static_token', '=', static_token),
-            ('token_type', '=', token_type),
+            ('token_type', 'in', ['bearer', 'xgitlabtoken', 'header']),
         ], order='id DESC', limit=1)
 
         # Decision tree based on token status

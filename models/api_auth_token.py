@@ -6,13 +6,15 @@ from odoo import api, fields, models, _
 from odoo.tools import DEFAULT_SERVER_DATETIME_FORMAT, float_compare
 from odoo.exceptions import UserError
 
-from ..controllers.auth import TEST_CONTROLLER_URL, TEST_CONTROLLER_V2_URL
+from ..controllers.auth import TEST_CONTROLLER_URL
 
 _logger = logging.getLogger(__name__)
 
 
 # Base token types - specific types are added via inheritance
-TOKEN_TYPES_LIST = []
+TOKEN_TYPES_LIST = [
+    ('header', "Header-Based Token"),
+]
 
 
 class InoukAPIAuthToken(models.Model):
@@ -43,6 +45,85 @@ class InoukAPIAuthToken(models.Model):
     )
     security_log = fields.Text()
 
+    # Show/Hide sensitive credentials
+    show_password = fields.Boolean(
+        string="Show Credentials",
+        default=False,
+        help="Toggle to show/hide sensitive credentials (tokens, passwords, secret keys)"
+    )
+
+    # Flexible Header Token Configuration (for header type)
+    service_preset = fields.Selection([
+        ('standard_bearer', 'Standard Bearer (OAuth2/JWT)'),
+        ('gitlab_webhook', 'GitLab Webhook'),
+        ('github_pat', 'GitHub Personal Access Token'),
+        ('api_key', 'API Key (X-API-Key)'),
+        ('custom', 'Custom Configuration')
+    ], string="Quick Setup", store=False, help="Quick configuration for common services")
+
+    # Header configuration
+    header_name = fields.Selection([
+        ('Authorization', 'Authorization'),
+        ('X-Gitlab-Token', 'X-Gitlab-Token'),
+        ('X-API-Key', 'X-API-Key'),
+        ('X-Auth-Token', 'X-Auth-Token'),
+        ('custom', 'Custom Header')
+    ], default='Authorization', help="HTTP header name to use for authentication")
+
+    custom_header_name = fields.Char(
+        string="Custom Header Name",
+        help="Specify custom header name when 'Custom Header' is selected"
+    )
+
+    header_prefix = fields.Selection([
+        ('Bearer ', 'Bearer'),
+        ('Basic ', 'Basic'),
+        ('', 'No Prefix'),
+        ('custom', 'Custom Prefix')
+    ], default='Bearer ', help="Prefix to add before the token value in the header")
+
+    custom_header_prefix = fields.Char(
+        string="Custom Prefix",
+        help="Specify custom prefix (include trailing space if needed)"
+    )
+
+    # URL parameter configuration
+    support_url_param = fields.Boolean(
+        string="Allow URL Parameter",
+        default=True,
+        help="Allow token to be passed as URL parameter (less secure)"
+    )
+
+    url_param_name = fields.Selection([
+        ('access_token', 'access_token (OAuth2)'),
+        ('api_key', 'api_key'),
+        ('token', 'token'),
+        ('key', 'key'),
+        ('custom', 'Custom Parameter')
+    ], default='access_token', help="URL parameter name for token")
+
+    custom_url_param_name = fields.Char(
+        string="Custom Parameter Name",
+        help="Specify custom URL parameter name"
+    )
+
+    # Computed actual values used by authentication
+    actual_header_name = fields.Char(
+        compute='_compute_actual_values',
+        store=True,
+        help="Actual header name to use (computed from selection or custom)"
+    )
+    actual_header_prefix = fields.Char(
+        compute='_compute_actual_values',
+        store=True,
+        help="Actual prefix to use (computed from selection or custom)"
+    )
+    actual_url_param_name = fields.Char(
+        compute='_compute_actual_values',
+        store=True,
+        help="Actual URL parameter name to use (computed from selection or custom)"
+    )
+
     # Type-specific fields are added via inheritance in separate files
 
     test_use_header = fields.Boolean(
@@ -54,10 +135,10 @@ class InoukAPIAuthToken(models.Model):
         compute="compute__test_curl",
         help="This is a test cURL that just returns the token used"
     )
-    hello_curl = fields.Char(
-        string="Hello cURL",
+    test_curl_helper = fields.Char(
+        string="Test cURL Helper",
         compute="compute__test_curl",
-        help="This is a test cURL that just returns the token used"
+        help="This is a test cURL command using environment variables"
     )
     python_examples = fields.Html(
         string="Python Examples",
@@ -75,10 +156,10 @@ class InoukAPIAuthToken(models.Model):
                     TEST_CONTROLLER_URL
                 )
                 # Default fallback - should be overridden by inherited models
-                record.hello_curl = f"# Generate credentials first for {record.token_type}"
+                record.test_curl_helper = f"# Generate credentials first for {record.token_type}"
             else:
                 record.hello_url = None
-                record.hello_curl = "# Configure web.base.url first"
+                record.test_curl_helper = "# Configure web.base.url first"
 
     _sql_constraints = [
         ('token_uniq', "UNIQUE(static_token, token_type)", "Token must be unique!")
@@ -117,6 +198,66 @@ class InoukAPIAuthToken(models.Model):
             else:
                 # Default fallback - should be overridden by inherited models
                 record.python_examples = f"<div style='padding: 20px; color: #ff9800;'><i>Generate credentials first for {record.token_type}</i></div>"
+
+    @api.onchange('service_preset')
+    def _onchange_service_preset(self):
+        """Apply preset configurations for quick setup"""
+        if self.service_preset and self.token_type == 'header':
+            presets = {
+                'standard_bearer': {
+                    'header_name': 'Authorization',
+                    'header_prefix': 'Bearer ',
+                    'support_url_param': True,
+                    'url_param_name': 'access_token'
+                },
+                'gitlab_webhook': {
+                    'header_name': 'X-Gitlab-Token',
+                    'header_prefix': '',
+                    'support_url_param': True,
+                    'url_param_name': 'access_token'
+                },
+                'github_pat': {
+                    'header_name': 'Authorization',
+                    'header_prefix': 'Bearer ',
+                    'support_url_param': False,
+                    'url_param_name': 'access_token'
+                },
+                'api_key': {
+                    'header_name': 'X-API-Key',
+                    'header_prefix': '',
+                    'support_url_param': True,
+                    'url_param_name': 'api_key'
+                }
+            }
+
+            if self.service_preset in presets:
+                preset_config = presets[self.service_preset]
+                for field, value in preset_config.items():
+                    setattr(self, field, value)
+
+    @api.depends('header_name', 'custom_header_name',
+                 'header_prefix', 'custom_header_prefix',
+                 'url_param_name', 'custom_url_param_name')
+    def _compute_actual_values(self):
+        """Compute actual values based on selections and custom inputs"""
+        for record in self:
+            # Compute actual header name
+            if record.header_name == 'custom':
+                record.actual_header_name = record.custom_header_name or ''
+            else:
+                record.actual_header_name = record.header_name or 'Authorization'
+
+            # Compute actual header prefix
+            if record.header_prefix == 'custom':
+                record.actual_header_prefix = record.custom_header_prefix or ''
+            else:
+                record.actual_header_prefix = record.header_prefix or ''
+
+            # Compute actual URL parameter name
+            if record.url_param_name == 'custom':
+                record.actual_url_param_name = record.custom_url_param_name or 'access_token'
+            else:
+                record.actual_url_param_name = record.url_param_name or 'access_token'
 
     def restore_token(self):
         for record in self:

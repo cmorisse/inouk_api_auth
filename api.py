@@ -40,7 +40,11 @@ def ik_authorize(func):
         # Issue deprecation warning
         warnings.warn(
             "The @ik_authorize decorator is deprecated. "
-            "Please use auth='ik_bearer' in your route definition instead.",
+            "Please migrate to:\n"
+            "  - auth='ik_bearer' for standard Bearer authentication\n"
+            "  - auth='ik_gitwebhook' for GitLab/GitHub webhooks\n"
+            "  - auth='ik_httpbasic' for HTTP Basic authentication\n"
+            "  - auth='ik_awssigv4' for AWS Signature v4 authentication",
             DeprecationWarning,
             stacklevel=2
         )

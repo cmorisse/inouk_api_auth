@@ -8,8 +8,19 @@
             <field name="arch" type="xml">
                 <form>
                     <header>
-                            <button class="btn-warning" type="object" string="Regenerate Token" icon="fa-refresh" name="btn_regenerate_token" />
-                            <button class="btn-danger" type="object" string="Restore Token" icon="fa-cog" groups="base.group_no_one" name="btn_restore_token" invisible="not is_compromised" />
+                            <button class="btn-warning"
+                                    type="object"
+                                    string="Regenerate Credentials"
+                                    icon="fa-refresh"
+                                    name="btn_regenerate_credentials"
+                                    confirm="Are you sure you want to regenerate the credentials? The old ones will stop working immediately." />
+                            <button class="btn-danger"
+                                    type="object"
+                                    string="Restore Token"
+                                    invisible="not is_compromised"
+                                    icon="fa-cog"
+                                    groups="base.group_no_one"
+                                    name="btn_restore_token" />
 
                         
                     </header>                    
@@ -30,9 +41,6 @@
                         </div>
     
                         <group>
-                            <group colspan="4">
-                                <field name="static_token" />
-                            </group>
                             <group>
                                 <field name="token_type" />
                                 <field name="user_id" />
@@ -41,15 +49,136 @@
                             <group>
                                 <field name="expiration_ts" />
                                 <field name="is_compromised" />
+                                <field name="show_password" string="Show password" widget="boolean_toggle"/>
+
                             </group>
-                            <group colspan="4">
-                                <field name="hello_curl" widget="CopyClipboardChar" style="text-align: left;" />
+                            <!-- Flexible Header Token Configuration -->
+                            <group string="Header Token Configuration" col="2" colspan="4" invisible="token_type != 'header'">
+                                <!-- Quick Setup -->
+                                <group string="Quick Setup" col="2">
+                                    <field name="service_preset" string="Service Preset"
+                                           placeholder="Select a service preset or choose Custom..."/>
+                                    <div class="text-muted">Choose a preset to automatically configure common services</div>
+                                </group>
+
+                                <!-- Header Configuration -->
+                                <group string="Header Configuration" col="2">
+                                    <field name="header_name"/>
+                                    <field name="custom_header_name"
+                                           invisible="header_name != 'custom'"
+                                           required="header_name == 'custom' and token_type == 'header'"/>
+                                    <field name="header_prefix"/>
+                                    <field name="custom_header_prefix"
+                                           invisible="header_prefix != 'custom'"/>
+                                </group>
+
+                                <!-- URL Parameter Configuration -->
+                                <group string="URL Parameter Settings" col="2">
+                                    <field name="support_url_param" widget="boolean_toggle"/>
+                                    <field name="url_param_name" invisible="not support_url_param"/>
+                                    <field name="custom_url_param_name"
+                                           invisible="url_param_name != 'custom'"
+                                           required="url_param_name == 'custom' and support_url_param"/>
+                                    <div class="alert alert-warning" role="alert" colspan="2">
+                                        <i class="fa fa-warning"/> URL parameters are less secure (visible in server logs).
+                                        Use header authentication when possible.
+                                    </div>
+                                </group>
+
+                                <!-- Configuration Summary -->
+                                <group string="Configuration Summary" col="2">
+                                    <div class="alert alert-info" role="alert">
+                                        <strong>Header:</strong> <field name="actual_header_name" readonly="1" nolabel="1" class="oe_inline"/><br/>
+                                        <strong>Value Format:</strong> <field name="actual_header_prefix" readonly="1" nolabel="1" class="oe_inline"/>[TOKEN]<br/>
+                                        <span invisible="not support_url_param">
+                                            <strong>URL Parameter:</strong> ?<field name="actual_url_param_name" readonly="1" nolabel="1" class="oe_inline"/>=[TOKEN]
+                                        </span>
+                                    </div>
+                                </group>
+
+                                <!-- Token and Testing -->
+                                <group string="Token &amp; Testing" col="2">
+                                    <field name="test_use_header" widget="boolean_toggle" string="Use Header in Test"/>
+                                    <field name="static_token" widget="CopyClipboardChar"
+                                           required="token_type == 'header'"/>
+                                    <div></div>
+                                    <field name="test_curl_helper" widget="CopyClipboardChar"
+                                           style="text-align: left;" string="Test cURL Command"/>
+                                </group>
                             </group>
+
+                            <div class="alert alert-info" role="alert" colspan="4">
+                                <strong>Note:</strong> Click "Regenerate Credentials" to generate a new password.
+                            </div>
+
+                            <!-- Legacy Token Types (Deprecated) -->
+                            <group string="Bearer / X-Gitlab-Token" colspan="4" col="2" invisible="token_type not in ('bearer', 'xgitlabtoken')">
+                                <field name="test_use_header" widget="boolean_toggle"/>
+
+                                <label for="static_token" />
+                                <div>
+                                    <field name="static_token" widget="CopyClipboardChar"
+                                           nolabel="1" 
+                                           colspan="1"
+                                           invisible="not show_password"
+                                           required="token_type in ('bearer', 'xgitlabtoken')"/>
+                                    <span invisible="show_passwordattrs">************</span>
+                                </div>                              
+
+                            </group>
+                            <group string="AWS Credentials" colspan="4" col="4" invisible="token_type != 'awssigv4">
+                                <field name="awssigv4_access_key_id" string="ACCESS KEY ID"
+                                       widget="CopyClipboardChar" placeholder="AKIA..." />
+
+                                <label for="awssigv4_secret_access_key" string="SECRET ACCESS KEY" />
+                                <div>
+                                    <field name="awssigv4_secret_access_key" string="SECRET ACCESS KEY" widget="CopyClipboardChar"
+                                           placeholder="40-character secret key"
+                                           nolabel="1" 
+                                           colspan="1"
+                                           invisible="not show_password" />
+                                    <span invisible="show_password">************</span>
+                                </div>                              
+
+                            </group>
+
+                            <group string="HTTP Basic Credentials" colspan="4" col="4" invisible="token_type != 'httpbasicauth'">
+                                <field name="httpbasicauth_username" string="Username" widget="CopyClipboardChar" />
+
+                                <label for="httpbasicauth_password" string="Password" />
+                                <div>
+                                    <field name="httpbasicauth_password" string="Password" widget="CopyClipboardChar" 
+                                           nolabel="1" 
+                                           colspan="1"
+                                           invisible="not show_password" />
+                                    <span invisible="show_password">************</span>
+                                </div>                              
+                                
+                            </group>
+
+                            <group string="Helpers" colspan="4" col="4" >
+                                <label for="test_curl_helper" string="Test cURL" />
+                                <div>
+                                    <field name="test_curl_helper" widget="CopyClipboardChar"
+                                           nolabel="1"
+                                           colspan="1"
+                                           invisible="not show_password" 
+                                           style="text-align: left;" string="Test cURL"/>
+                                    <span invisible="show_password">*** Show password to display helper ***</span>
+
+                                </div>
+
+
+                            </group>
+
 
                         </group>
                         <notebook>
                             <page string="Security log">
                                 <field name="security_log" colspan="4" />
+                            </page>
+                            <page string="Documentation" invisible="not static_token and not awssigv4_access_key_id and not httpbasicauth_username">
+                                <field name="python_examples" nolabel="1" readonly="1"/>
                             </page>
                             <page string="Advanced">
                                 <group>
@@ -77,12 +206,12 @@
             <field name="model">ik.api_auth_token</field>
             <field name="priority" eval="15" />
             <field name="arch" type="xml">
-                <list>
-                    <field name="user_id" />
-                    <field name="token_type" />
-                    <field name="static_token" />
-                    <field name="expiration_ts" />
-                    <field name="description" optional="show" />
+                <tree>
+                    <field name="name"/>
+                    <field name="user_id"/>
+                    <field name="token_type"/>
+                    <field name="expiration_ts"/>
+                    <field name="description"  optional="show" />
                     <field name="is_compromised" string="Compromised" />
                 </list>
             </field>

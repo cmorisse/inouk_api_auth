@@ -122,11 +122,11 @@
                                            colspan="1"
                                            invisible="not show_password"
                                            required="token_type in ('bearer', 'xgitlabtoken')"/>
-                                    <span invisible="show_passwordattrs">************</span>
+                                    <span invisible="show_password">************</span>
                                 </div>                              
 
                             </group>
-                            <group string="AWS Credentials" colspan="4" col="4" invisible="token_type != 'awssigv4">
+                            <group string="AWS Credentials" colspan="4" col="4" invisible="token_type != 'awssigv4'">
                                 <field name="awssigv4_access_key_id" string="ACCESS KEY ID"
                                        widget="CopyClipboardChar" placeholder="AKIA..." />
 
@@ -206,7 +206,7 @@
             <field name="model">ik.api_auth_token</field>
             <field name="priority" eval="15" />
             <field name="arch" type="xml">
-                <tree>
+                <list>
                     <field name="name"/>
                     <field name="user_id"/>
                     <field name="token_type"/>

@@ -19,7 +19,10 @@ class InoukAPIAuthToken(models.Model):
     _inherit = 'ik.api_auth_token'
 
     # Add Bearer to token type selection
-    token_type = fields.Selection(selection_add=TOKEN_TYPES_LIST)
+    token_type = fields.Selection(
+        selection_add=TOKEN_TYPES_LIST,
+        ondelete={'bearer': 'cascade'}
+    )
 
     def btn_regenerate_credentials(self):
         """Regenerate credentials - Bearer token specific implementation"""

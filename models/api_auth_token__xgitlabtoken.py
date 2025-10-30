@@ -19,7 +19,10 @@ class InoukAPIAuthToken(models.Model):
     _inherit = 'ik.api_auth_token'
 
     # Add X-Gitlab-Token to token type selection
-    token_type = fields.Selection(selection_add=TOKEN_TYPES_LIST)
+    token_type = fields.Selection(
+        selection_add=TOKEN_TYPES_LIST,
+        ondelete={'xgitlabtoken': 'cascade'}
+    )
 
     def btn_regenerate_credentials(self):
         """Regenerate credentials - X-Gitlab-Token specific implementation"""

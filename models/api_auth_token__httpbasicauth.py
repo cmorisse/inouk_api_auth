@@ -20,7 +20,10 @@ class InoukAPIAuthToken(models.Model):
     _inherit = 'ik.api_auth_token'
 
     # Add HTTP Basic to token type selection
-    token_type = fields.Selection(selection_add=TOKEN_TYPES_LIST)
+    token_type = fields.Selection(
+        selection_add=TOKEN_TYPES_LIST,
+        ondelete={'httpbasicauth': 'cascade'}
+    )
 
     # SQL constraints for HTTP Basic auth
     _sql_constraints = [

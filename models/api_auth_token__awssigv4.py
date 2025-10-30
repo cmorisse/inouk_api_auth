@@ -19,7 +19,10 @@ class InoukAPIAuthToken(models.Model):
     _inherit = 'ik.api_auth_token'
 
     # Add AWS SigV4 to token type selection
-    token_type = fields.Selection(selection_add=TOKEN_TYPES_LIST)
+    token_type = fields.Selection(
+        selection_add=TOKEN_TYPES_LIST,
+        ondelete={'awssigv4': 'cascade'}
+    )
 
     # AWS SigV4 specific fields
     awssigv4_access_key_id = fields.Char(

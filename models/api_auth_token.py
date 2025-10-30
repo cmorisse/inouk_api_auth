@@ -29,7 +29,8 @@ class InoukAPIAuthToken(models.Model):
         selection=TOKEN_TYPES_LIST,
         string="Type",
         required=True,
-        default="bearer"
+        default="bearer",
+        ondelete={'header': 'cascade'}
     )
     expiration_ts = fields.Datetime(
         string="Expires on",

@@ -3,7 +3,8 @@ import base64
 import logging
 
 from odoo import models, fields
-from odoo.http import request, AuthenticationError
+from odoo.http import request
+from odoo.exceptions import AccessDenied
 
 _logger = logging.getLogger(__name__)
 
@@ -28,7 +29,7 @@ class IrHttpBasic(models.AbstractModel):
         # Extract Authorization header
         auth_header = request.httprequest.headers.get('Authorization', '')
         if not auth_header.lower().startswith('basic '):
-            raise AuthenticationError("Missing or invalid Basic Authorization header.")
+            raise AccessDenied("Missing or invalid Basic Authorization header.")
 
         # Decode the base64 credentials
         try:
@@ -38,7 +39,7 @@ class IrHttpBasic(models.AbstractModel):
             _logger.info("HTTP Basic auth - Username: %s", username)
         except (IndexError, ValueError, UnicodeDecodeError) as e:
             _logger.warning("HTTP Basic auth - Failed to decode credentials: %s", e)
-            raise AuthenticationError("Invalid Basic Authorization format.")
+            raise AccessDenied("Invalid Basic Authorization format.")
 
         # Search for token in database by username
         token_obj = request.env['ik.api_auth_token'].sudo().search([
@@ -49,24 +50,24 @@ class IrHttpBasic(models.AbstractModel):
         # Decision tree based on token status
         if not token_obj:
             _logger.warning("HTTP Basic authentication failed - no token found for username: %s", username)
-            raise AuthenticationError("Invalid credentials.")
+            raise AccessDenied("Invalid credentials.")
         elif token_obj.is_compromised:
             _logger.warning("HTTP Basic authentication failed - token %s (ID: %s) is compromised",
                           token_obj.name, token_obj.id)
-            raise AuthenticationError("Invalid credentials.")
+            raise AccessDenied("Invalid credentials.")
         elif token_obj.expiration_ts and token_obj.expiration_ts <= fields.Datetime.now():
             _logger.warning("HTTP Basic authentication failed - token %s (ID: %s) expired at %s",
                           token_obj.name, token_obj.id, token_obj.expiration_ts)
-            raise AuthenticationError("Invalid credentials.")
+            raise AccessDenied("Invalid credentials.")
 
         # Validate password against stored password
         if not token_obj.httpbasicauth_password:
             _logger.warning("HTTP Basic authentication failed - no password for token %s", token_obj.name)
-            raise AuthenticationError("Invalid credentials.")
+            raise AccessDenied("Invalid credentials.")
 
         if token_obj.httpbasicauth_password != password:
             _logger.warning("HTTP Basic authentication failed - invalid password for username: %s", username)
-            raise AuthenticationError("Invalid credentials.")
+            raise AccessDenied("Invalid credentials.")
 
         # Check if token was sent over HTTPS
         is_compromised = cls._check_token_compromised(request, http_referer)
@@ -75,7 +76,7 @@ class IrHttpBasic(models.AbstractModel):
             if token_obj.enforce_integrity:
                 # Mark token as compromised and expire it
                 cls._compromise_token(token_obj, sender_ip)
-                raise AuthenticationError("Invalid credentials.")
+                raise AccessDenied("Invalid credentials.")
             else:
                 _logger.warning("HTTP Basic token %s received over unsecure 'http' from %s.", token_obj, sender_ip)
 

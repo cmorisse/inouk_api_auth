@@ -8,7 +8,8 @@ import logging
 import werkzeug.wrappers
 
 from odoo import fields
-from odoo.http import Response, request, route, Controller, AuthenticationError
+from odoo.http import Response, request, route, Controller
+from odoo.exceptions import AccessDenied
 from odoo.tools.safe_eval import safe_eval
 
 #from odoo.addons.muppy_core.api import MpyException, MpyAPIException, mpy_execute

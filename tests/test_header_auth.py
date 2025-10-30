@@ -2,7 +2,7 @@ import logging
 from unittest.mock import patch, MagicMock
 from odoo.tests.common import TransactionCase
 from odoo.tests import tagged
-from odoo.http import AuthenticationError
+from odoo.exceptions import AccessDenied
 from odoo import fields
 
 _logger = logging.getLogger(__name__)
@@ -148,7 +148,7 @@ class TestHeaderAuthentication(TransactionCase):
         mock_request.httprequest.args = {}
         mock_request.env = self.env
 
-        with self.assertRaises(AuthenticationError) as cm:
+        with self.assertRaises(AccessDenied) as cm:
             self.env['ir.http']._auth_method_ik_header()
 
         self.assertIn('Invalid or missing authentication token', str(cm.exception))
@@ -162,7 +162,7 @@ class TestHeaderAuthentication(TransactionCase):
         mock_request.httprequest.args = {}
         mock_request.env = self.env
 
-        with self.assertRaises(AuthenticationError):
+        with self.assertRaises(AccessDenied):
             self.env['ir.http']._auth_method_ik_header()
 
     @patch('odoo.http.request')
@@ -177,7 +177,7 @@ class TestHeaderAuthentication(TransactionCase):
         mock_request.httprequest.args = {}
         mock_request.env = self.env
 
-        with self.assertRaises(AuthenticationError) as cm:
+        with self.assertRaises(AccessDenied) as cm:
             self.env['ir.http']._auth_method_ik_header()
 
         self.assertIn('Invalid Access Token', str(cm.exception))
@@ -195,7 +195,7 @@ class TestHeaderAuthentication(TransactionCase):
         mock_request.httprequest.args = {}
         mock_request.env = self.env
 
-        with self.assertRaises(AuthenticationError):
+        with self.assertRaises(AccessDenied):
             self.env['ir.http']._auth_method_ik_header()
 
     @patch('odoo.http.request')
@@ -215,7 +215,7 @@ class TestHeaderAuthentication(TransactionCase):
         with patch.object(self.env['ir.http'], '_check_token_compromised', return_value=True), \
              patch.object(self.env['ir.http'], '_compromise_token') as mock_compromise:
 
-            with self.assertRaises(AuthenticationError):
+            with self.assertRaises(AccessDenied):
                 self.env['ir.http']._auth_method_ik_header()
 
             # Verify token was marked as compromised
@@ -277,7 +277,7 @@ class TestHeaderAuthentication(TransactionCase):
         mock_request.httprequest.args = {}
         mock_request.env = self.env
 
-        with self.assertRaises(AuthenticationError):
+        with self.assertRaises(AccessDenied):
             self.env['ir.http']._auth_method_ik_header()
 
     @patch('odoo.http.request')

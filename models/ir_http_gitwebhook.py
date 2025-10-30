@@ -2,7 +2,8 @@
 import logging
 
 from odoo import models, fields
-from odoo.http import request, AuthenticationError
+from odoo.http import request
+from odoo.exceptions import AccessDenied
 
 _logger = logging.getLogger(__name__)
 
@@ -67,7 +68,7 @@ class IrHttpGitWebhook(models.AbstractModel):
                 _logger.info("Git webhook auth via URL parameter")
 
         if not token_string:
-            raise AuthenticationError("Missing webhook authentication token")
+            raise AccessDenied("Missing webhook authentication token")
 
         # Search for token - accept multiple types including xgitlabtoken for backward compat
         token_obj = request.env['ik.api_auth_token'].sudo().search([
@@ -78,15 +79,15 @@ class IrHttpGitWebhook(models.AbstractModel):
         # Decision tree based on token status
         if not token_obj:
             _logger.warning("Git webhook authentication failed - no token found")
-            raise AuthenticationError("Invalid webhook token")
+            raise AccessDenied("Invalid webhook token")
         elif token_obj.is_compromised:
             _logger.warning("Git webhook authentication failed - token %s (ID: %s) is compromised",
                           token_obj.name, token_obj.id)
-            raise AuthenticationError("Invalid webhook token")
+            raise AccessDenied("Invalid webhook token")
         elif token_obj.expiration_ts and token_obj.expiration_ts <= fields.Datetime.now():
             _logger.warning("Git webhook authentication failed - token %s (ID: %s) expired at %s",
                           token_obj.name, token_obj.id, token_obj.expiration_ts)
-            raise AuthenticationError("Invalid webhook token")
+            raise AccessDenied("Invalid webhook token")
 
         # Check if token was sent over HTTPS
         is_compromised = cls._check_token_compromised(request, http_referer)
@@ -94,7 +95,7 @@ class IrHttpGitWebhook(models.AbstractModel):
         if is_compromised:
             if token_obj.enforce_integrity:
                 cls._compromise_token(token_obj, sender_ip)
-                raise AuthenticationError("Invalid webhook token")
+                raise AccessDenied("Invalid webhook token")
             else:
                 _logger.warning("Git webhook token %s received over unsecure 'http' from %s.",
                               token_obj, sender_ip)

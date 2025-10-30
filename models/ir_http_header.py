@@ -2,7 +2,8 @@
 import logging
 
 from odoo import models, fields
-from odoo.http import request, AuthenticationError
+from odoo.http import request
+from odoo.exceptions import AccessDenied
 
 _logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class IrHttpHeader(models.AbstractModel):
 
         if not header_tokens:
             _logger.debug("No header-based tokens configured")
-            raise AuthenticationError("No valid authentication method available.")
+            raise AccessDenied("No valid authentication method available.")
 
         # Try to extract token from headers first
         token_obj, token_string, auth_source = cls._extract_token_from_headers(header_tokens)
@@ -47,7 +48,7 @@ class IrHttpHeader(models.AbstractModel):
         # If still no token found, raise authentication error
         if not token_obj:
             _logger.warning("Header authentication failed - no matching token found")
-            raise AuthenticationError("Invalid or missing authentication token.")
+            raise AccessDenied("Invalid or missing authentication token.")
 
         # Validate token status
         cls._validate_token_status(token_obj)
@@ -56,7 +57,7 @@ class IrHttpHeader(models.AbstractModel):
         is_compromised = cls._check_token_compromised(request, http_referer)
         if is_compromised and token_obj.enforce_integrity:
             cls._compromise_token(token_obj, sender_ip)
-            raise AuthenticationError("Invalid Access Token.")
+            raise AccessDenied("Invalid Access Token.")
         elif is_compromised:
             _logger.warning("Token %s received over unsecure 'http' from %s.", token_obj, sender_ip)
 
@@ -243,12 +244,12 @@ class IrHttpHeader(models.AbstractModel):
         if token_obj.is_compromised:
             _logger.warning("Authentication failed - token %s (ID: %s) is compromised",
                           token_obj.name, token_obj.id)
-            raise AuthenticationError("Invalid Access Token.")
+            raise AccessDenied("Invalid Access Token.")
 
         if token_obj.expiration_ts and token_obj.expiration_ts <= fields.Datetime.now():
             _logger.warning("Authentication failed - token %s (ID: %s) expired at %s",
                           token_obj.name, token_obj.id, token_obj.expiration_ts)
-            raise AuthenticationError("Invalid Access Token.")
+            raise AccessDenied("Invalid Access Token.")
 
     @classmethod
     def _auth_method_ik_bearer(cls):

@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 
 from odoo import fields
 from odoo.tests.common import TransactionCase, tagged
-from odoo.http import AuthenticationError
+from odoo.exceptions import AccessDenied
 
 
 @tagged('post_install', '-at_install')
@@ -98,7 +98,7 @@ class TestAuthMethods(TransactionCase):
 
         with patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request', mock_request):
             ir_http = self.env['ir.http']
-            with self.assertRaises(AuthenticationError) as cm:
+            with self.assertRaises(AccessDenied) as cm:
                 ir_http._auth_method_ik_bearer()
             self.assertIn("Missing required Authorization", str(cm.exception))
 
@@ -111,7 +111,7 @@ class TestAuthMethods(TransactionCase):
 
         with patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request', mock_request):
             ir_http = self.env['ir.http']
-            with self.assertRaises(AuthenticationError) as cm:
+            with self.assertRaises(AccessDenied) as cm:
                 ir_http._auth_method_ik_bearer()
             self.assertIn("Invalid Access Token", str(cm.exception))
 
@@ -132,7 +132,7 @@ class TestAuthMethods(TransactionCase):
 
         with patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request', mock_request):
             ir_http = self.env['ir.http']
-            with self.assertRaises(AuthenticationError) as cm:
+            with self.assertRaises(AccessDenied) as cm:
                 ir_http._auth_method_ik_bearer()
             self.assertIn("Invalid Access Token", str(cm.exception))
 
@@ -147,7 +147,7 @@ class TestAuthMethods(TransactionCase):
 
         with patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request', mock_request):
             ir_http = self.env['ir.http']
-            with self.assertRaises(AuthenticationError) as cm:
+            with self.assertRaises(AccessDenied) as cm:
                 ir_http._auth_method_ik_bearer()
             self.assertIn("Invalid Access Token", str(cm.exception))
 
@@ -198,7 +198,7 @@ class TestAuthMethods(TransactionCase):
 
         with patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request', mock_request):
             ir_http = self.env['ir.http']
-            with self.assertRaises(AuthenticationError):
+            with self.assertRaises(AccessDenied):
                 ir_http._auth_method_ik_bearer()
 
             # Check token was compromised
@@ -265,7 +265,7 @@ class TestAuthMethods(TransactionCase):
 
         with patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request', mock_request):
             ir_http = self.env['ir.http']
-            with self.assertRaises(AuthenticationError) as cm:
+            with self.assertRaises(AccessDenied) as cm:
                 ir_http._auth_method_ik_awssigv4()
             self.assertIn("Missing or invalid AWS4-HMAC-SHA256", str(cm.exception))
 
@@ -292,6 +292,6 @@ class TestAuthMethods(TransactionCase):
         with patch('odoo.addons.inouk_api_auth.models.ir_http_extension.request', mock_request):
             with patch.object(self.env['ir.http'], '_validate_awssigv4_signature', return_value=False):
                 ir_http = self.env['ir.http']
-                with self.assertRaises(AuthenticationError) as cm:
+                with self.assertRaises(AccessDenied) as cm:
                     ir_http._auth_method_ik_awssigv4()
                 self.assertIn("Invalid AWS Signature", str(cm.exception))

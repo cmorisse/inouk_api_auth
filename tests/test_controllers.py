@@ -4,7 +4,7 @@ import secrets
 from unittest.mock import patch
 
 from odoo.tests.common import HttpCase, tagged
-from odoo.http import AuthenticationError
+from odoo.exceptions import AccessDenied
 
 
 @tagged('post_install', '-at_install')

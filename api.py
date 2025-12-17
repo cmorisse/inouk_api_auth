@@ -74,13 +74,9 @@ def ik_authorize(func):
                 _logger.info("Received header 'X-Gitlab-Token: %s'", token_string)
 
             else:
-                token_string = request.params.get('access_token')
-                if not token_string:
-                    token_string = request.httprequest.args.get('access_token')
-
-                if token_string: 
-                    if 'access_token' in request.params:
-                        del request.params['access_token']
+                # Odoo 18: use httprequest.args instead of request.params
+                token_string = request.httprequest.args.get('access_token')
+                if token_string:
                     token_type = 'bearer'
                 else:
                     raise AccessDenied("Missing required Authorization.")
@@ -125,8 +121,7 @@ def ik_authorize(func):
         user_obj = token_obj.user_id
         #request.session.uid = static_token_obj.user_id.id
         #request.uid = static_token_obj.user_id.id
-        request.session.uid = user_obj.id
-        request.uid = user_obj.id
+        request.update_env(user=user_obj.id)
         # We must set session_token to validate login
         request.session.session_token = user_obj._compute_session_token(request.session.sid)
         #request.inouk_api_auth_token_id = token_obj.id

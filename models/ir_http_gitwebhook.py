@@ -54,16 +54,10 @@ class IrHttpGitWebhook(models.AbstractModel):
                 auth_source = 'bearer'
                 _logger.info("Git webhook auth via Authorization header")
 
-        # Priority 4: URL parameter (legacy support)
+        # Priority 4: URL parameter (legacy support, Odoo 18: use httprequest.args)
         if not token_string:
-            token_string = request.params.get('access_token')
-            if not token_string:
-                token_string = request.httprequest.args.get('access_token')
-
+            token_string = request.httprequest.args.get('access_token')
             if token_string:
-                # Remove from params to avoid passing it to the controller
-                if 'access_token' in request.params:
-                    del request.params['access_token']
                 auth_source = 'url_param'
                 _logger.info("Git webhook auth via URL parameter")
 
@@ -102,8 +96,7 @@ class IrHttpGitWebhook(models.AbstractModel):
 
         # Authenticate the user associated with the token
         user_obj = token_obj.user_id
-        request.session.uid = user_obj.id
-        request.uid = user_obj.id
+        request.update_env(user=user_obj.id)
 
         # Set session token to validate the session
         request.session.session_token = user_obj._compute_session_token(request.session.sid)

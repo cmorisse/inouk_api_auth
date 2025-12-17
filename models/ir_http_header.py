@@ -63,8 +63,7 @@ class IrHttpHeader(models.AbstractModel):
 
         # Authenticate the user associated with the token
         user_obj = token_obj.user_id
-        request.session.uid = user_obj.id
-        request.uid = user_obj.id
+        request.update_env(user=user_obj.id)
 
         # Set session token to validate the session
         request.session.session_token = user_obj._compute_session_token(request.session.sid)
@@ -166,11 +165,9 @@ class IrHttpHeader(models.AbstractModel):
 
             params_to_check.add(param_name)
 
-        # Check each parameter
+        # Check each parameter (Odoo 18: use httprequest.args instead of request.params)
         for param_name in params_to_check:
-            param_value = request.params.get(param_name)
-            if not param_value:
-                param_value = request.httprequest.args.get(param_name)
+            param_value = request.httprequest.args.get(param_name)
 
             if not param_value:
                 continue
@@ -183,10 +180,6 @@ class IrHttpHeader(models.AbstractModel):
             )
 
             if token_obj:
-                # Remove from params to avoid passing to controller
-                if param_name in request.params:
-                    del request.params[param_name]
-
                 auth_source = {
                     'source_type': 'url_param',
                     'param_name': param_name

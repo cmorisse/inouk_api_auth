@@ -14,7 +14,7 @@ import json
 import logging
 from odoo import http
 from odoo.http import Response
-from odoo.tools import date_utils
+from odoo.tools.json import json_default
 from werkzeug.exceptions import HTTPException
 
 _logger = logging.getLogger(__name__)
@@ -85,7 +85,7 @@ def patched_dispatch(self, endpoint, args):
                 return result
 
             # Serialize result to plain JSON
-            body = json.dumps(result, default=date_utils.json_default)
+            body = json.dumps(result, default=json_default)
             return Response(
                 body,
                 status=200,

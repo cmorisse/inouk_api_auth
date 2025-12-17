@@ -46,17 +46,13 @@ class IrHttpBearer(models.AbstractModel):
                 token_type = 'xgitlabtoken'
                 _logger.info("Received header 'X-Gitlab-Token: %s'", token_string)
 
-        # Check URL parameter as last resort
+        # Check URL parameter as last resort (Odoo 18: use httprequest.args)
+        token_from_url = False
         if not token_string:
-            token_string = request.params.get('access_token')
-            if not token_string:
-                token_string = request.httprequest.args.get('access_token')
-
+            token_string = request.httprequest.args.get('access_token')
             if token_string:
-                # Remove from params to avoid passing it to the controller
-                if 'access_token' in request.params:
-                    del request.params['access_token']
                 token_type = 'bearer'
+                token_from_url = True
             else:
                 raise AccessDenied("Missing required Authorization.")
 
@@ -100,8 +96,7 @@ class IrHttpBearer(models.AbstractModel):
 
         # Authenticate the user associated with the token
         user_obj = token_obj.user_id
-        request.session.uid = user_obj.id
-        request.uid = user_obj.id
+        request.update_env(user=user_obj.id)
 
         # Set session token to validate the session
         request.session.session_token = user_obj._compute_session_token(request.session.sid)
@@ -109,7 +104,7 @@ class IrHttpBearer(models.AbstractModel):
         # Build auth details specific to Bearer/X-Gitlab-Token
         auth_details = {
             'header_type': 'Authorization' if auth_header else 'X-Gitlab-Token',
-            'token_source': 'header' if token_string != request.params.get('access_token', '') else 'url_param'
+            'token_source': 'url_param' if token_from_url else 'header'
         }
 
         # Build and store complete auth context

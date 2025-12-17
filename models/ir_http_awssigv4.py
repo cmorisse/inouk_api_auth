@@ -122,8 +122,7 @@ class IrHttpAwsSigV4(models.AbstractModel):
 
         # Authenticate the user associated with the token
         user_obj = token_obj.user_id
-        request.session.uid = user_obj.id
-        request.uid = user_obj.id
+        request.update_env(user=user_obj.id)
 
         # Set session token to validate the session
         request.session.session_token = user_obj._compute_session_token(request.session.sid)

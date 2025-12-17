@@ -174,3 +174,121 @@ class InoukAPIAuthControllerV1(Controller):
             'referer': request_source.get('referer')
         }
 
+
+# =============================================================================
+# Test endpoints for ik_plain_json validation
+# =============================================================================
+# These endpoints are used to validate that the ik_plain_json monkey-patch
+# works correctly in Odoo 18. They test:
+# - Plain JSON request/response (no JSON-RPC wrapper)
+# - HTTP status codes via werkzeug.exceptions.HTTPException
+# - Custom exceptions with status_code attribute
+# - Datetime serialization
+# - Response object pass-through
+
+from odoo import http
+from werkzeug.exceptions import BadRequest, NotFound, Forbidden
+
+
+class PlainJsonTestError(Exception):
+    """Custom exception with status_code attribute for testing"""
+    status_code = 422
+
+    def __init__(self, message="Validation error"):
+        self.name = message
+        super().__init__(message)
+
+
+class InoukAPIAuthPlainJsonTestController(Controller):
+    """Test controller for ik_plain_json validation.
+
+    All endpoints use type='json' with ik_plain_json=True to validate
+    the plain JSON (non-JSON-RPC) request/response handling.
+    """
+
+    @http.route('/inouk/api_auth/test/plain_json/echo', type='json', auth='ik_bearer',
+                methods=['POST'], csrf=False, save_session=False, ik_plain_json=True)
+    def test_plain_json_echo(self, **params):
+        """Echo back received params as plain JSON.
+
+        Used to test:
+        - Plain JSON body is correctly parsed (no JSON-RPC wrapper expected)
+        - Response is plain JSON (no JSON-RPC wrapper in response)
+        """
+        return {'status': 'success', 'echo': params}
+
+    @http.route('/inouk/api_auth/test/plain_json/error_400', type='json', auth='ik_bearer',
+                methods=['POST'], csrf=False, save_session=False, ik_plain_json=True)
+    def test_plain_json_error_400(self, **params):
+        """Raise HTTPException to test 400 status code.
+
+        Used to test that werkzeug.exceptions.BadRequest returns HTTP 400.
+        """
+        raise BadRequest("Test bad request error")
+
+    @http.route('/inouk/api_auth/test/plain_json/error_404', type='json', auth='ik_bearer',
+                methods=['POST'], csrf=False, save_session=False, ik_plain_json=True)
+    def test_plain_json_error_404(self, **params):
+        """Raise HTTPException to test 404 status code.
+
+        Used to test that werkzeug.exceptions.NotFound returns HTTP 404.
+        """
+        raise NotFound("Test not found error")
+
+    @http.route('/inouk/api_auth/test/plain_json/error_403', type='json', auth='ik_bearer',
+                methods=['POST'], csrf=False, save_session=False, ik_plain_json=True)
+    def test_plain_json_error_403(self, **params):
+        """Raise HTTPException to test 403 status code.
+
+        Used to test that werkzeug.exceptions.Forbidden returns HTTP 403.
+        """
+        raise Forbidden("Test forbidden error")
+
+    @http.route('/inouk/api_auth/test/plain_json/error_custom', type='json', auth='ik_bearer',
+                methods=['POST'], csrf=False, save_session=False, ik_plain_json=True)
+    def test_plain_json_error_custom(self, **params):
+        """Raise exception with custom status_code attribute.
+
+        Used to test that exceptions with status_code=422 return HTTP 422.
+        """
+        raise PlainJsonTestError("Test custom status code error")
+
+    @http.route('/inouk/api_auth/test/plain_json/error_500', type='json', auth='ik_bearer',
+                methods=['POST'], csrf=False, save_session=False, ik_plain_json=True)
+    def test_plain_json_error_500(self, **params):
+        """Raise generic exception to test 500 status code.
+
+        Used to test that unhandled exceptions return HTTP 500.
+        """
+        raise ValueError("Test internal server error")
+
+    @http.route('/inouk/api_auth/test/plain_json/datetime', type='json', auth='ik_bearer',
+                methods=['POST'], csrf=False, save_session=False, ik_plain_json=True)
+    def test_plain_json_datetime(self, **params):
+        """Test datetime serialization.
+
+        Used to test that datetime objects are correctly serialized via date_utils.json_default.
+        """
+        return {
+            'datetime': datetime.datetime.now(),
+            'date': datetime.date.today(),
+            'string': 'test',
+            'number': 42
+        }
+
+    @http.route('/inouk/api_auth/test/plain_json/response_object', type='json', auth='ik_bearer',
+                methods=['POST'], csrf=False, save_session=False, ik_plain_json=True)
+    def test_plain_json_response_object(self, **params):
+        """Test Response object pass-through.
+
+        Used to test that if endpoint returns a Response object, it's returned as-is.
+        """
+        custom_data = {'custom': 'response', 'with_header': True}
+        return Response(
+            json.dumps(custom_data),
+            status=201,
+            headers=[
+                ('Content-Type', 'application/json'),
+                ('X-Custom-Header', 'test-value')
+            ]
+        )

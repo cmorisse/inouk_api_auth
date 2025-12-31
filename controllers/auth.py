@@ -1,3 +1,64 @@
+"""
+Inouk API Auth Controllers
+==========================
+
+JSON Handling in Odoo Routes (Odoo 18)
+--------------------------------------
+
+This module provides API authentication endpoints. Understanding Odoo's route type
+behavior is essential when designing API endpoints.
+
+**Route Types and Content-Type Handling:**
+
+1. ``type='http'`` routes:
+   - Form-urlencoded (application/x-www-form-urlencoded):
+     - Data automatically parsed into **kwargs
+   - JSON (application/json):
+     - Raw body available via ``request.httprequest.get_data(as_text=True)``
+     - Must manually parse with ``json.loads()``
+   - Returns: Response object (raw HTTP response)
+
+2. ``type='json'`` routes (default Odoo behavior):
+   - Expects JSON-RPC 2.0 format: ``{"jsonrpc": "2.0", "method": "call", "params": {...}}``
+   - REJECTS non-JSON content types with HTTP 400:
+     ``"Request inferred type is compatible with ['http'] but 'X' is type='json'"``
+
+3. ``type='json'`` + ``ik_plain_json=True`` routes (inouk_api_auth extension):
+   - Accepts plain JSON (no JSON-RPC wrapper needed)
+   - Response is plain JSON (no JSON-RPC wrapper)
+   - ALSO rejects non-JSON content types (same 400 error)
+   - Implemented via monkey-patch in ``json_plain_patch.py``
+
+**Choosing the Right Route Type:**
+
+- Use ``type='http'`` when you need to support BOTH form-urlencoded AND JSON
+  (e.g., OAuth /oauth/token endpoint which must support form-urlencoded per RFC 6749)
+
+- Use ``type='json'`` + ``ik_plain_json=True`` for pure JSON REST APIs
+  (e.g., MCP protocol endpoints, internal API calls)
+
+**Dual-Format Handler Pattern (for type='http'):**
+
+.. code-block:: python
+
+    @route('/api/endpoint', type='http', methods=['POST'], auth='public', csrf=False)
+    def dual_format_endpoint(self, **kwargs):
+        content_type = request.httprequest.content_type or ''
+
+        if 'application/json' in content_type:
+            # Parse JSON manually
+            data = json.loads(request.httprequest.get_data(as_text=True))
+        else:
+            # Form-urlencoded - data already in kwargs
+            data = kwargs
+
+        # Process data...
+        result = {'status': 'success'}
+        return Response(json.dumps(result), content_type='application/json')
+
+Tests confirming this behavior: See test script results in git history (2025-12-31).
+"""
+# ceci est un commentaire
 import json
 import functools
 import timeit
@@ -11,12 +72,6 @@ from odoo import fields
 from odoo.http import Response, request, route, Controller
 from odoo.exceptions import AccessDenied
 from odoo.tools.safe_eval import safe_eval
-
-#from odoo.addons.muppy_core.api import MpyException, MpyAPIException, mpy_execute
-#from odoo.addons.muppy_postgresql_base.scripts import postgresql
-#from odoo.addons.muppy_postgresql_replication.scripts import postgresql_sr
-#from odoo.addons.muppy_core.scripts import demo
-#from odoo.addons.muppy_core.utils import json_datetime_serializer
 
 
 _logger = logging.getLogger(__name__)

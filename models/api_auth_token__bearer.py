@@ -11,7 +11,7 @@ _logger = logging.getLogger(__name__)
 
 
 TOKEN_TYPES_LIST = [
-    ('bearer', "Bearer"),
+    ('bearer', "Bearer - DEPRECATED"),
 ]
 
 
@@ -24,14 +24,35 @@ class InoukAPIAuthToken(models.Model):
         ondelete={'bearer': 'cascade'}
     )
 
+    # Identifiable prefix + base64url (better density)
+    def generate_credentials_bearer(self):
+        """Generate a secure bearer token with identifiable prefix.
+
+        Format: ikaa_<base64url_token>
+        - Prefix allows leak detection in logs/repos (like GitHub's ghp_)
+        - base64url is more compact than hex (same entropy, fewer chars)
+        - 32 bytes = 256 bits of entropy
+        """
+        prefix = "ikaa_"  # Identifiable prefix for leak scanning
+        token = secrets.token_urlsafe(32)  # 256 bits, base64url encoded
+        return f"{prefix}{token}"
+
+    @api.model
+    def default_get(self, fields_list):
+        """Set default values - static_token generation moved to type-specific implementations"""
+        result = super().default_get(fields_list)
+        if result.get('token_type')=='bearer':
+            if 'static_token' in fields_list:
+                result['static_token'] = self.generate_credentials_bearer()
+        return result
+
+
     def btn_regenerate_credentials(self):
         """Regenerate credentials - Bearer token specific implementation"""
         self.ensure_one()
-
         if self.token_type == 'bearer':
             # Generate standard hex token
-            self.static_token = secrets.token_hex(30)
-            # NO notification - just update the field
+            self.static_token = self.generate_credentials_bearer()
             return True
         else:
             return super().btn_regenerate_credentials()

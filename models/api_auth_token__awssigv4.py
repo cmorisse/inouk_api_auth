@@ -14,6 +14,15 @@ TOKEN_TYPES_LIST = [
     ('awssigv4', "AWS Signature V4"),
 ]
 
+AWSSIGV4_TEST_CURL = """# Set environment variables:
+# export AWS_ACCESS_KEY_ID="{_access_key_id}"
+# export AWS_SECRET_ACCESS_KEY="{_secret_access_key_id}"
+
+# Note: This requires manual AWS SigV4 signing. Consider using AWS CLI or SDK instead.
+# Example with AWS CLI:
+aws apigateway test-invoke-method --rest-api-id YOUR_API_ID --resource-id YOUR_RESOURCE_ID --http-method GET"""
+
+
 
 class InoukAPIAuthToken(models.Model):
     _inherit = 'ik.api_auth_token'
@@ -62,16 +71,21 @@ class InoukAPIAuthToken(models.Model):
         if not _base_url:
             return "# Configure web.base.url first"
 
+        # Render template with actual credentials
         awssigv4_url = urljoin(_base_url, TOKEN_STATUS_CONTROLLER_URL + '/awssigv4')
 
         # Generate curl command with environment variables
-        return f"""# Set environment variables:
-# export AWS_ACCESS_KEY_ID="your_access_key_here"
-# export AWS_SECRET_ACCESS_KEY="your_secret_key_here"
+        if self.show_password:
+            _access_key_id = self.awssigv4_access_key_id
+            _secret_access_key_id = self.awssigv4_secret_access_key       
+        else:
+            _access_key_id = "your_access_key_here"
+            _secret_access_key_id = "your_secret_key_here"
 
-# Note: This requires manual AWS SigV4 signing. Consider using AWS CLI or SDK instead.
-# Example with AWS CLI:
-aws apigateway test-invoke-method --rest-api-id YOUR_API_ID --resource-id YOUR_RESOURCE_ID --http-method GET"""
+        return AWSSIGV4_TEST_CURL.format(
+            _access_key_id=_access_key_id,
+            _secret_access_key_id=_secret_access_key_id,
+        )
 
     def compute__test_curl(self):
         """Override to handle AWS SigV4 cURL generation"""

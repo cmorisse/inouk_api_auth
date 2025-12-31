@@ -22,16 +22,20 @@ class InoukAPIAuthToken(models.Model):
     _description = "API Auth Token - Inouk"
 
     name = fields.Char(required=True)
-    static_token = fields.Char(index=True)
     description = fields.Char()
     user_id = fields.Many2one('res.users', required=True)
     token_type = fields.Selection(
         selection=TOKEN_TYPES_LIST,
         string="Type",
         required=True,
-        default="bearer",
+        default="header",
         ondelete={'header': 'cascade'}
     )
+    static_token = fields.Char(index=True)
+    def generate_credentials(self):
+        self.ensure_one()
+        raise UserError("Don't know how to generate token of type:'%s'")
+ 
     expiration_ts = fields.Datetime(
         string="Expires on",
         help="You can define a timestamp after which the token will expire. "
@@ -50,8 +54,12 @@ class InoukAPIAuthToken(models.Model):
     show_password = fields.Boolean(
         string="Show Credentials",
         default=False,
+        store=False,
+        inverse="_inverse_show_password",
         help="Toggle to show/hide sensitive credentials (tokens, passwords, secret keys)"
     )
+    def _inverse_show_password(self):
+        pass
 
     # Flexible Header Token Configuration (for header type)
     service_preset = fields.Selection([

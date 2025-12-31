@@ -39,14 +39,19 @@ class InoukAPIAuthToken(models.Model):
 
         token_status_url = urljoin(_base_url, TOKEN_STATUS_CONTROLLER_URL + '/bearer')
 
+        if self.show_password:
+            _token = self.static_token
+        else:
+            _token = "your_token_here"
+
         if self.test_use_header:
             header_name = self.actual_header_name
-            return f"# Set environment variable:\\n# export CUSTOM_TOKEN=\"your_token_here\"\\n\\ncurl --header \"{header_name}: {self.actual_header_prefix}$CUSTOM_TOKEN\" \"{token_status_url}\""
+            return f"# Set environment variable:\nexport IKAA_TEST_TOKEN=\"{_token}\"\n\ncurl --header \"{header_name}: {self.actual_header_prefix}$IKAA_TEST_TOKEN\" \"{token_status_url}\""
         else:
             # Use URL parameter if supported
             if self.support_url_param:
                 param_name = self.actual_url_param_name
-                return f"# Set environment variable:\\n# export CUSTOM_TOKEN=\"your_token_here\"\\n\\ncurl \"{token_status_url}?{param_name}=$CUSTOM_TOKEN\""
+                return f"# Set environment variable:\nexport IKAA_TEST_TOKEN=\"{_token}\"\n\ncurl \"{token_status_url}?{param_name}=$IKAA_TEST_TOKEN\""
             else:
                 return "# URL parameter not supported for this token configuration"
 
@@ -97,7 +102,7 @@ class InoukAPIAuthToken(models.Model):
             <strong>📋 Setup Instructions:</strong><br/>
             1. Copy your token from the form field above<br/>
             2. Set environment variable:<br/>
-            <code>export CUSTOM_TOKEN="your_token_here"</code><br/>
+            <code>export IKAA_TEST_TOKEN="your_token_here"</code><br/>
             3. Never commit credentials to version control<br/>
             4. Use .env files for local development (with python-dotenv)
         </div>
@@ -113,9 +118,9 @@ class InoukAPIAuthToken(models.Model):
 import requests
 
 # Load token from environment variable
-token = os.environ.get('CUSTOM_TOKEN')
+token = os.environ.get('IKAA_TEST_TOKEN')
 if not token:
-    raise ValueError("Please set CUSTOM_TOKEN environment variable")
+    raise ValueError("Please set IKAA_TEST_TOKEN environment variable")
 
 # Token status endpoint (JSON response)
 url = "{token_status_url}"
@@ -148,9 +153,9 @@ else:
 import requests
 
 # Load token from environment variable
-token = os.environ.get('CUSTOM_TOKEN')
+token = os.environ.get('IKAA_TEST_TOKEN')
 if not token:
-    raise ValueError("Please set CUSTOM_TOKEN environment variable")
+    raise ValueError("Please set IKAA_TEST_TOKEN environment variable")
 
 # ⚠️  Note: URL parameters are less secure (visible in logs)
 url = "{token_status_url}"
@@ -171,9 +176,9 @@ import requests
 import json
 
 # Load token from environment variable
-token = os.environ.get('CUSTOM_TOKEN')
+token = os.environ.get('IKAA_TEST_TOKEN')
 if not token:
-    raise ValueError("Please set CUSTOM_TOKEN environment variable")
+    raise ValueError("Please set IKAA_TEST_TOKEN environment variable")
 
 # For your actual API endpoints
 url = "{base_url}/your/api/endpoint"

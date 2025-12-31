@@ -11,7 +11,7 @@ _logger = logging.getLogger(__name__)
 
 
 TOKEN_TYPES_LIST = [
-    ('xgitlabtoken', "X-Gitlab-Token"),
+    ('xgitlabtoken', "X-Gitlab-Token - DEPRECATED"),
 ]
 
 

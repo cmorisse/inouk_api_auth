@@ -73,7 +73,7 @@ class InoukAPIAuthToken(models.Model):
         httpbasic_url = urljoin(_base_url, TOKEN_STATUS_CONTROLLER_URL + '/httpbasic')
 
         # Use environment variables for credentials
-        return f"# Set environment variables:\\n# export HTTPBASIC_USERNAME=\"your_username_here\"\\n# export HTTPBASIC_PASSWORD=\"your_password_here\"\\n\\ncurl --user \"$HTTPBASIC_USERNAME:$HTTPBASIC_PASSWORD\" \"{httpbasic_url}\""
+        return f"# Set environment variables:\nexport IKAA_HTTPBASIC_USERNAME=\"{self.httpbasicauth_username}\"\nexport IKAA_HTTPBASIC_PASSWORD=\"{self.httpbasicauth_password}\"\n\ncurl --user \"$IKAA_HTTPBASIC_USERNAME:$IKAA_HTTPBASIC_PASSWORD\" \"{httpbasic_url}\""
 
     def compute__test_curl(self):
         """Override to handle HTTP Basic auth cURL generation"""

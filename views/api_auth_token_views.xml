@@ -73,16 +73,16 @@
                                 </group>
 
                                 <!-- URL Parameter Configuration -->
-                                <group string="URL Parameter Settings" col="2">
+                                <group string="URL Parameter Settings" class="ik_lw180" col="2">
+                                    <div class="alert alert-warning" role="alert" colspan="2">
+                                        <i class="fa fa-warning"/> URL parameters are less secure (visible in server logs).
+                                        Use header authentication when possible.
+                                    </div>
                                     <field name="support_url_param" widget="boolean_toggle"/>
                                     <field name="url_param_name" invisible="not support_url_param"/>
                                     <field name="custom_url_param_name"
                                            invisible="url_param_name != 'custom'"
                                            required="url_param_name == 'custom' and support_url_param"/>
-                                    <div class="alert alert-warning" role="alert" colspan="2">
-                                        <i class="fa fa-warning"/> URL parameters are less secure (visible in server logs).
-                                        Use header authentication when possible.
-                                    </div>
                                 </group>
 
                                 <!-- Configuration Summary -->
@@ -97,13 +97,23 @@
                                 </group>
 
                                 <!-- Token and Testing -->
-                                <group string="Token &amp; Testing" col="2">
+                                <group string="Token &amp; Testing" colspan="2">
+
+                                    <label for="static_token" />
+                                    <div>
+                                        <field name="static_token" widget="CopyClipboardChar"
+                                            nolabel="1" 
+                                            colspan="1"
+                                            invisible="not show_password"
+                                            required="token_type in ('header', 'bearer', 'xgitlabtoken')"/>
+                                        <span invisible="show_password">****** Use 'Show password' above</span>
+                                    </div>   
+
                                     <field name="test_use_header" widget="boolean_toggle" string="Use Header in Test"/>
-                                    <field name="static_token" widget="CopyClipboardChar"
-                                           required="token_type == 'header'"/>
-                                    <div></div>
-                                    <field name="test_curl_helper" widget="CopyClipboardChar"
-                                           style="text-align: left;" string="Test cURL Command"/>
+                                    <field name="test_curl_helper" 
+                                           widget="inouk_ace" options="{'mode':'sh', 'theme':'xcode'}"
+                                           string="Token status cURL command"/>
+                                    <field name="test_curl_helper" widget="CopyClipboardButton" string="Copy cURL command"/>
                                 </group>
                             </group>
 
@@ -112,7 +122,7 @@
                             </div>
 
                             <!-- Legacy Token Types (Deprecated) -->
-                            <group string="Bearer / X-Gitlab-Token" colspan="4" col="2" invisible="token_type not in ('bearer', 'xgitlabtoken')">
+                            <group string="Bearer / X-Gitlab-Token - DEPRECATED" colspan="4" col="2" invisible="token_type not in ('bearer', 'xgitlabtoken')">
                                 <field name="test_use_header" widget="boolean_toggle"/>
 
                                 <label for="static_token" />
@@ -126,7 +136,7 @@
                                 </div>                              
 
                             </group>
-                            <group string="AWS Credentials" colspan="4" col="4" invisible="token_type != 'awssigv4'">
+                            <group string="AWS Credentials" class="ik_lw180" colspan="2" invisible="token_type != 'awssigv4'">
                                 <field name="awssigv4_access_key_id" string="ACCESS KEY ID"
                                        widget="CopyClipboardChar" placeholder="AKIA..." />
 
@@ -137,12 +147,11 @@
                                            nolabel="1" 
                                            colspan="1"
                                            invisible="not show_password" />
-                                    <span invisible="show_password">************</span>
+                                    <span invisible="show_password">************ Use 'Show password' above to display SECRET ACCESS KEY</span>
                                 </div>                              
 
                             </group>
-
-                            <group string="HTTP Basic Credentials" colspan="4" col="4" invisible="token_type != 'httpbasicauth'">
+                            <group string="HTTP Basic Credentials"  invisible="token_type != 'httpbasicauth'">
                                 <field name="httpbasicauth_username" string="Username" widget="CopyClipboardChar" />
 
                                 <label for="httpbasicauth_password" string="Password" />
@@ -151,7 +160,7 @@
                                            nolabel="1" 
                                            colspan="1"
                                            invisible="not show_password" />
-                                    <span invisible="show_password">************</span>
+                                    <span invisible="show_password">************ Use 'Show password' above</span>
                                 </div>                              
                                 
                             </group>
@@ -159,19 +168,16 @@
                             <group string="Helpers" colspan="4" col="4" >
                                 <label for="test_curl_helper" string="Test cURL" />
                                 <div>
-                                    <field name="test_curl_helper" widget="CopyClipboardChar"
-                                           nolabel="1"
-                                           colspan="1"
+                                    <field name="test_curl_helper" 
+                                           widget="inouk_ace" options="{'mode':'sh', 'theme':'xcode'}"
                                            invisible="not show_password" 
-                                           style="text-align: left;" string="Test cURL"/>
-                                    <span invisible="show_password">*** Show password to display helper ***</span>
-
+                                           string="Token status cURL command"/>
+                                    <span invisible="show_password">*** Use 'Show password' above to display helper ***</span>
+                                    <field name="test_curl_helper" 
+                                           invisible="not show_password" 
+                                           widget="CopyClipboardButton" string="Copy cURL command"/>
                                 </div>
-
-
                             </group>
-
-
                         </group>
                         <notebook>
                             <page string="Security log">

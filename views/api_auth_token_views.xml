@@ -156,13 +156,29 @@
 
                                 <label for="httpbasicauth_password" string="Password" />
                                 <div>
-                                    <field name="httpbasicauth_password" string="Password" widget="CopyClipboardChar" 
-                                           nolabel="1" 
+                                    <field name="httpbasicauth_password" string="Password" widget="CopyClipboardChar"
+                                           nolabel="1"
                                            colspan="1"
                                            invisible="not show_password" />
                                     <span invisible="show_password">************ Use 'Show password' above</span>
-                                </div>                              
-                                
+                                </div>
+
+                            </group>
+
+                            <!-- OAuth Client Credentials -->
+                            <group string="OAuth Client Credentials" invisible="token_type != 'oauth_client'">
+                                <field name="oauth_client_id" string="Client ID" widget="CopyClipboardChar" />
+
+                                <label for="oauth_client_secret" string="Client Secret" />
+                                <div>
+                                    <field name="oauth_client_secret" string="Client Secret" widget="CopyClipboardChar"
+                                           nolabel="1"
+                                           colspan="1"
+                                           invisible="not show_password" />
+                                    <span invisible="show_password">************ Use 'Show password' above</span>
+                                </div>
+
+                                <field name="oauth_token_lifetime" string="Token Lifetime (s)" />
                             </group>
 
                             <group string="Helpers" colspan="4" col="4" >
@@ -183,8 +199,18 @@
                             <page string="Security log">
                                 <field name="security_log" colspan="4" />
                             </page>
-                            <page string="Documentation" invisible="not static_token and not awssigv4_access_key_id and not httpbasicauth_username">
+                            <page string="Documentation" invisible="not static_token and not awssigv4_access_key_id and not httpbasicauth_username and not oauth_client_id">
                                 <field name="python_examples" nolabel="1" readonly="1"/>
+                            </page>
+                            <page string="Generated Access Tokens" invisible="token_type != 'oauth_client'">
+                                <field name="oauth_generated_token_ids" nolabel="1" readonly="1">
+                                    <list>
+                                        <field name="name"/>
+                                        <field name="static_token"/>
+                                        <field name="expiration_ts"/>
+                                        <field name="is_compromised"/>
+                                    </list>
+                                </field>
                             </page>
                             <page string="Advanced">
                                 <group>

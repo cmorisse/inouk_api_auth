@@ -19,6 +19,7 @@ Features:
 * New auth='ik_header' authentication method
 * Legacy auth='ik_bearer' compatibility
 * Legacy @ik_authorize decorator support (deprecated)
+* OAuth 2.0 Client Credentials flow (SEP-1046)
 """,
 
     'author': "Cyril MORISSE",
@@ -43,7 +44,11 @@ Features:
 
         # views
         'views/api_auth_token_views.xml',
-        'menu.xml'
+        'views/res_config_settings_views.xml',
+        'menu.xml',
+
+        # data
+        'data/cron.xml',
     ],
     'demo': [],
     'application': True,

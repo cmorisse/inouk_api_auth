@@ -5,9 +5,11 @@ from . import api_auth_token__bearer  # Keep for backward compatibility
 from . import api_auth_token__xgitlabtoken  # Keep for backward compatibility
 from . import api_auth_token__awssigv4
 from . import api_auth_token__httpbasicauth
+from . import api_auth_token__oauth_client
 from . import ir_http_extension
 from . import ir_http_header  # New unified header authentication
 from . import ir_http_bearer  # Keep for backward compatibility
 from . import ir_http_gitwebhook  # New unified Git webhook authentication
 from . import ir_http_awssigv4
 from . import ir_http_httpbasic
+from . import res_config_settings

@@ -30,6 +30,433 @@ RFC 7617 compliant Basic authentication:
 - Secure password hashing with verification
 - Username-based token lookup
 
+## OAuth 2.0 / 2.1 Authentication
+
+This module supports three OAuth flows for different use cases:
+
+| Flow | Use Case | User Interaction | RFC |
+|------|----------|-----------------|-----|
+| **Client Credentials** | Server-to-server, scripts, CI/CD | None (M2M) | OAuth 2.0 |
+| **Authorization Code + PKCE** | Claude.ai, web apps | Yes (consent screen) | OAuth 2.1 |
+| **Device Code** | CLI tools (mpy/mgx) in remote environments | Yes (browser) | RFC 8628 |
+
+### Discovery Endpoints
+
+Clients can discover OAuth endpoints automatically:
+
+**Authorization Server Metadata (RFC 8414):**
+```bash
+curl https://your-server/.well-known/oauth-authorization-server
+```
+
+**Response:**
+```json
+{
+  "issuer": "https://your-server",
+  "authorization_endpoint": "https://your-server/oauth/authorize",
+  "token_endpoint": "https://your-server/oauth/token",
+  "registration_endpoint": "https://your-server/oauth/register",
+  "device_authorization_endpoint": "https://your-server/oauth/device/code",
+  "response_types_supported": ["code"],
+  "grant_types_supported": [
+    "authorization_code",
+    "refresh_token",
+    "client_credentials",
+    "urn:ietf:params:oauth:grant-type:device_code"
+  ],
+  "code_challenge_methods_supported": ["S256"],
+  "scopes_supported": ["mcp:discovery", "mcp:metadata", "mcp:operations", "..."]
+}
+```
+
+**Protected Resource Metadata (RFC 9728):**
+```bash
+curl https://your-server/.well-known/oauth-protected-resource
+```
+
+**Response:**
+```json
+{
+  "resource": "https://your-server/mcp",
+  "authorization_servers": ["https://your-server"],
+  "bearer_methods_supported": ["header"],
+  "scopes_supported": ["mcp:discovery", "mcp:metadata", "mcp:operations"]
+}
+```
+
+### OAuth 2.0 Client Credentials (Machine-to-Machine)
+
+For server-to-server communication without user interaction.
+
+**Prerequisites:**
+1. Create an OAuth Client in Odoo (Settings > Technical > OAuth Client Registration)
+2. Enable `client_credentials` grant type
+3. Generate a client secret
+
+**Step 1: Request Access Token**
+```bash
+curl -X POST https://your-server/oauth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=client_credentials" \
+  -d "client_id=ikac_YOUR_CLIENT_ID" \
+  -d "client_secret=ikacs_YOUR_CLIENT_SECRET" \
+  -d "scope=mcp:discovery mcp:metadata mcp:operations"
+```
+
+**Response:**
+```json
+{
+  "access_token": "ikaa_eyJhbGciOiJIUzI1NiIs...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "scope": "mcp:discovery mcp:metadata mcp:operations"
+}
+```
+
+**Step 2: Use the Token**
+```bash
+curl https://your-server/mcp \
+  -H "Authorization: Bearer ikaa_eyJhbGciOiJIUzI1NiIs..." \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc": "2.0", "method": "tools/list", "id": 1}'
+```
+
+### OAuth 2.1 Authorization Code + PKCE (User Authentication)
+
+For web applications and Claude.ai integration. PKCE (RFC 7636) is **mandatory**.
+
+```
+┌─────────────┐                                    ┌─────────────────┐
+│   Client    │                                    │  Muppy Server   │
+│ (Claude.ai) │                                    │                 │
+└──────┬──────┘                                    └────────┬────────┘
+       │                                                    │
+       │ 1. Generate code_verifier + code_challenge         │
+       │                                                    │
+       │ 2. Redirect user → /oauth/authorize                │
+       │    ?response_type=code                             │
+       │    &client_id=...                                  │
+       │    &code_challenge=...                             │
+       │    &code_challenge_method=S256                     │
+       │───────────────────────────────────────────────────>│
+       │                                                    │
+       │         ┌──────────────────────────────────┐       │
+       │         │  User sees consent screen        │       │
+       │         │  and clicks [Authorize]          │       │
+       │         └──────────────────────────────────┘       │
+       │                                                    │
+       │ 3. Redirect back with ?code=AUTH_CODE              │
+       │<───────────────────────────────────────────────────│
+       │                                                    │
+       │ 4. POST /oauth/token                               │
+       │    code=AUTH_CODE                                  │
+       │    code_verifier=ORIGINAL_VERIFIER                 │
+       │───────────────────────────────────────────────────>│
+       │                                                    │
+       │ 5. { access_token, refresh_token }                 │
+       │<───────────────────────────────────────────────────│
+```
+
+**Step 1: Generate PKCE Code Verifier and Challenge**
+
+```python
+import secrets
+import hashlib
+import base64
+
+# Generate code_verifier (43-128 characters)
+code_verifier = secrets.token_urlsafe(32)
+# Example: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+
+# Generate code_challenge = BASE64URL(SHA256(code_verifier))
+digest = hashlib.sha256(code_verifier.encode('ascii')).digest()
+code_challenge = base64.urlsafe_b64encode(digest).rstrip(b'=').decode('ascii')
+# Example: "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+```
+
+Or with bash:
+```bash
+CODE_VERIFIER=$(openssl rand -base64 32 | tr -d '=' | tr '/+' '_-')
+CODE_CHALLENGE=$(echo -n "$CODE_VERIFIER" | openssl dgst -sha256 -binary | base64 | tr -d '=' | tr '/+' '_-')
+```
+
+**Step 2: Redirect User to Authorization Endpoint**
+
+Build the authorization URL:
+```
+https://your-server/oauth/authorize
+  ?response_type=code
+  &client_id=ikac_YOUR_CLIENT_ID
+  &redirect_uri=https://your-app/callback
+  &scope=mcp:discovery mcp:metadata mcp:operations
+  &state=RANDOM_STATE_FOR_CSRF
+  &code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM
+  &code_challenge_method=S256
+```
+
+The user sees a consent screen and clicks "Authorize".
+
+**Step 3: Handle Callback with Authorization Code**
+
+After consent, the user is redirected to:
+```
+https://your-app/callback?code=AUTH_CODE_123&state=RANDOM_STATE_FOR_CSRF
+```
+
+**Step 4: Exchange Code for Tokens**
+```bash
+curl -X POST https://your-server/oauth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=authorization_code" \
+  -d "code=AUTH_CODE_123" \
+  -d "redirect_uri=https://your-app/callback" \
+  -d "client_id=ikac_YOUR_CLIENT_ID" \
+  -d "code_verifier=dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+```
+
+**Response:**
+```json
+{
+  "access_token": "ikaa_yyy...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "ikrt_zzz...",
+  "scope": "mcp:discovery mcp:metadata mcp:operations"
+}
+```
+
+### Device Code Flow (CLI Tools)
+
+For CLI applications (mpy/mgx) in remote environments (SSH, containers) where the browser is not on the same machine.
+
+```
+┌─────────────┐              ┌─────────────┐              ┌─────────────────┐
+│   CLI mpy   │              │  Browser    │              │  Muppy Server   │
+└──────┬──────┘              └──────┬──────┘              └────────┬────────┘
+       │                            │                              │
+       │ 1. POST /oauth/device/code                                │
+       │──────────────────────────────────────────────────────────>│
+       │                                                           │
+       │ 2. { device_code, verification_uri_complete }             │
+       │<──────────────────────────────────────────────────────────│
+       │                                                           │
+       │ 3. Display URL to user                                    │
+       │    "Visit: https://.../oauth/device?code=dc_xxx"          │
+       │                                                           │
+       │         ┌───────────────────────────────────────────┐     │
+       │         │ User opens URL in browser                 │     │
+       │         │ (same machine, phone, or other device)    │     │
+       │         └───────────────────────────────────────────┘     │
+       │                        │                                  │
+       │                        │ 4. GET /oauth/device?code=dc_xxx │
+       │                        │─────────────────────────────────>│
+       │                        │                                  │
+       │                        │ 5. Login + Consent screen        │
+       │                        │<─────────────────────────────────│
+       │                        │                                  │
+       │                        │ 6. [Authorize]                   │
+       │                        │─────────────────────────────────>│
+       │                                                           │
+       │ 7. Poll: POST /oauth/token (grant_type=device_code)       │
+       │──────────────────────────────────────────────────────────>│
+       │                                                           │
+       │ 8. { access_token, refresh_token }                        │
+       │<──────────────────────────────────────────────────────────│
+```
+
+**Step 1: Request Device Code**
+```bash
+curl -X POST https://your-server/oauth/device/code \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "client_id=mpy-cli" \
+  -d "scope=mcp:discovery mcp:metadata mcp:operations"
+```
+
+**Response:**
+```json
+{
+  "device_code": "dc_GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS",
+  "user_code": "WDJB-MJHT",
+  "verification_uri": "https://your-server/oauth/device",
+  "verification_uri_complete": "https://your-server/oauth/device?code=dc_GmRhmh...",
+  "expires_in": 900,
+  "interval": 5
+}
+```
+
+**Step 2: Display URL to User**
+
+The CLI displays:
+```
+To sign in, visit:
+  https://your-server/oauth/device?code=dc_GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS
+
+Waiting for authorization...
+```
+
+**Step 3: User Opens URL and Authorizes**
+
+The user opens the URL (on any device), logs in to Odoo if needed, and sees a consent screen.
+
+**Step 4: CLI Polls for Token**
+```bash
+# Poll every 5 seconds until authorized
+curl -X POST https://your-server/oauth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=urn:ietf:params:oauth:grant-type:device_code" \
+  -d "device_code=dc_GmRhmhcxhwAzkoEqiMEg_DnyEysNkuNhszIySk9eS" \
+  -d "client_id=mpy-cli"
+```
+
+**Polling Responses:**
+
+While waiting:
+```json
+{"error": "authorization_pending"}
+```
+
+If polling too fast:
+```json
+{"error": "slow_down"}
+```
+
+When user denies:
+```json
+{"error": "access_denied"}
+```
+
+When authorized:
+```json
+{
+  "access_token": "ikaa_yyy...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "ikrt_zzz...",
+  "scope": "mcp:discovery mcp:metadata mcp:operations"
+}
+```
+
+**Python Example (Polling Loop):**
+```python
+import time
+import requests
+
+def poll_for_token(server_url, device_code, client_id, interval=5, timeout=900):
+    """Poll until user authorizes or timeout."""
+    deadline = time.time() + timeout
+
+    while time.time() < deadline:
+        resp = requests.post(
+            f"{server_url}/oauth/token",
+            data={
+                "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+                "device_code": device_code,
+                "client_id": client_id,
+            }
+        )
+        result = resp.json()
+
+        if "access_token" in result:
+            return result  # Success!
+
+        error = result.get("error")
+        if error == "authorization_pending":
+            time.sleep(interval)
+            continue
+        elif error == "slow_down":
+            interval += 5
+            time.sleep(interval)
+            continue
+        else:
+            raise Exception(f"Authorization failed: {error}")
+
+    raise Exception("Authorization timed out")
+```
+
+### Dynamic Client Registration (RFC 7591)
+
+Clients can register themselves automatically:
+
+```bash
+curl -X POST https://your-server/oauth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_name": "My Application",
+    "redirect_uris": ["https://my-app.com/callback"],
+    "grant_types": ["authorization_code", "refresh_token"],
+    "response_types": ["code"],
+    "token_endpoint_auth_method": "none"
+  }'
+```
+
+**Response:**
+```json
+{
+  "client_id": "ikac_abc123...",
+  "client_name": "My Application",
+  "redirect_uris": ["https://my-app.com/callback"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none",
+  "client_id_issued_at": 1704067200,
+  "client_secret_expires_at": 0
+}
+```
+
+**Allowed redirect URI patterns** (configurable):
+- `https://claude.ai/api/mcp/auth_callback`
+- `https://claude.com/api/mcp/auth_callback`
+- `http://localhost:*/callback` (for local development)
+- `http://127.0.0.1:*/callback`
+
+### Scopes
+
+MCP (Model Context Protocol) scopes control access to Odoo resources:
+
+| Scope | Description |
+|-------|-------------|
+| `mcp:discovery` | List available domains and models |
+| `mcp:metadata` | Read model fields, methods, and structure |
+| `mcp:source` | Read method source code |
+| `mcp:documentation` | Read and write model documentation |
+| `mcp:debug` | Analyze stacktraces and debug information |
+| `mcp:operations` | Execute operations (read, write, create, delete) |
+
+Request scopes in the authorization request:
+```
+scope=mcp:discovery mcp:metadata mcp:operations
+```
+
+### Token Refresh
+
+Use refresh tokens to obtain new access tokens without user interaction:
+
+```bash
+curl -X POST https://your-server/oauth/token \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=refresh_token" \
+  -d "refresh_token=ikrt_zzz..." \
+  -d "client_id=ikac_YOUR_CLIENT_ID"
+```
+
+**Response:**
+```json
+{
+  "access_token": "ikaa_new_token...",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "ikrt_new_refresh_token...",
+  "scope": "mcp:discovery mcp:metadata mcp:operations"
+}
+```
+
+**Token Rotation**: When `inouk_api_auth.oauth_rotate_refresh_tokens` is enabled, each refresh request returns a new refresh token. The old refresh token is invalidated.
+
+**Token Lifetimes** (configurable via system parameters):
+- Access tokens: 1 hour (default)
+- Refresh tokens: 30 days (default)
+- Authorization codes: 10 minutes
+
 ## Plain JSON Support
 
 ### Why This Feature Exists

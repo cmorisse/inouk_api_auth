@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         OAuth 2.1 System Parameters
+         ═══════════════════════════════════════════════════════════════════════════ -->
+
+    <!-- Authorization code lifetime (seconds) - 10 minutes -->
+    <record id="oauth_code_lifetime" model="ir.config_parameter">
+        <field name="key">inouk_api_auth.oauth_code_lifetime</field>
+        <field name="value">600</field>
+    </record>
+
+    <!-- Access token lifetime (seconds) - 1 hour -->
+    <record id="oauth_token_lifetime" model="ir.config_parameter">
+        <field name="key">inouk_api_auth.oauth_token_lifetime</field>
+        <field name="value">3600</field>
+    </record>
+
+    <!-- Refresh token lifetime (days) - 30 days -->
+    <record id="oauth_refresh_lifetime_days" model="ir.config_parameter">
+        <field name="key">inouk_api_auth.oauth_refresh_lifetime_days</field>
+        <field name="value">30</field>
+    </record>
+
+    <!-- Rotate refresh tokens on each use (security best practice) -->
+    <record id="oauth_rotate_refresh_tokens" model="ir.config_parameter">
+        <field name="key">inouk_api_auth.oauth_rotate_refresh_tokens</field>
+        <field name="value">true</field>
+    </record>
+
+    <!-- Allowed redirect URI patterns (newline-separated) -->
+    <record id="oauth_allowed_redirect_patterns" model="ir.config_parameter">
+        <field name="key">inouk_api_auth.oauth_allowed_redirect_patterns</field>
+        <field name="value">https://claude.ai/api/mcp/auth_callback
+https://claude.com/api/mcp/auth_callback
+http://localhost:*/callback
+http://127.0.0.1:*/callback</field>
+    </record>
+
+    <!-- Device code lifetime (seconds) - 15 minutes -->
+    <record id="oauth_device_code_lifetime" model="ir.config_parameter">
+        <field name="key">inouk_api_auth.oauth_device_code_lifetime</field>
+        <field name="value">900</field>
+    </record>
+
+    <!-- Device code polling interval (seconds) -->
+    <record id="oauth_device_poll_interval" model="ir.config_parameter">
+        <field name="key">inouk_api_auth.oauth_device_poll_interval</field>
+        <field name="value">5</field>
+    </record>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         OAuth 2.1 Cron Jobs
+         ═══════════════════════════════════════════════════════════════════════════ -->
+
+    <!-- Cleanup expired authorization codes (hourly) -->
+    <record id="ir_cron_oauth21_cleanup_auth_codes" model="ir.cron">
+        <field name="name">OAuth 2.1: Cleanup expired authorization codes</field>
+        <field name="model_id" ref="model_ik_oauth_authorization_code"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_cleanup_expired()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">hours</field>
+        <field name="active">True</field>
+    </record>
+
+    <!-- Cleanup expired refresh tokens (daily) -->
+    <record id="ir_cron_oauth21_cleanup_refresh_tokens" model="ir.cron">
+        <field name="name">OAuth 2.1: Cleanup expired refresh tokens</field>
+        <field name="model_id" ref="model_ik_oauth_refresh_token"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_cleanup_expired()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active">True</field>
+    </record>
+
+    <!-- Cleanup expired device codes (every 15 minutes) -->
+    <record id="ir_cron_oauth21_cleanup_device_codes" model="ir.cron">
+        <field name="name">OAuth 2.1: Cleanup expired device codes</field>
+        <field name="model_id" ref="model_ik_oauth_device_code"/>
+        <field name="state">code</field>
+        <field name="code">model.cleanup_expired()</field>
+        <field name="interval_number">15</field>
+        <field name="interval_type">minutes</field>
+        <field name="active">True</field>
+    </record>
+
+</odoo>

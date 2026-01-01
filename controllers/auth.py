@@ -35,7 +35,7 @@ behavior is essential when designing API endpoints.
   (e.g., OAuth /oauth/token endpoint which must support form-urlencoded per RFC 6749)
 
 - Use ``type='json'`` + ``ik_plain_json=True`` for pure JSON REST APIs
-  (e.g., MCP protocol endpoints, internal API calls)
+  (e.g., internal API calls, external webhooks)
 
 **Dual-Format Handler Pattern (for type='http'):**
 

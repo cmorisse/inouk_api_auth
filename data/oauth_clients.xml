@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════════
+         Pre-registered OAuth 2.1 Clients
+
+         These clients are pre-configured for CLI tools that use the Device Code flow.
+         Users don't need to register them - they're ready to use.
+         ═══════════════════════════════════════════════════════════════════════════ -->
+
+    <!-- Muppy CLI (mpy) -->
+    <record id="oauth_client_mpy_cli" model="ik.oauth_client_registration">
+        <field name="client_id">mpy-cli</field>
+        <field name="client_name">Muppy CLI (mpy)</field>
+        <field name="registration_type">manual</field>
+        <field name="redirect_uris">http://localhost:*/callback
+http://127.0.0.1:*/callback</field>
+        <field name="grant_types">authorization_code,refresh_token,urn:ietf:params:oauth:grant-type:device_code</field>
+        <field name="response_types">code</field>
+        <field name="token_endpoint_auth_method">none</field>
+        <field name="allowed_scopes">mcp:discovery mcp:metadata mcp:source mcp:documentation mcp:debug mcp:operations</field>
+        <field name="default_scopes">mcp:discovery mcp:metadata mcp:operations</field>
+        <field name="active">True</field>
+    </record>
+
+    <!-- MGX CLI (mgx) -->
+    <record id="oauth_client_mgx_cli" model="ik.oauth_client_registration">
+        <field name="client_id">mgx-cli</field>
+        <field name="client_name">MGX CLI (mgx)</field>
+        <field name="registration_type">manual</field>
+        <field name="redirect_uris">http://localhost:*/callback
+http://127.0.0.1:*/callback</field>
+        <field name="grant_types">authorization_code,refresh_token,urn:ietf:params:oauth:grant-type:device_code</field>
+        <field name="response_types">code</field>
+        <field name="token_endpoint_auth_method">none</field>
+        <field name="allowed_scopes">mcp:discovery mcp:metadata mcp:source mcp:documentation mcp:debug mcp:operations</field>
+        <field name="default_scopes">mcp:discovery mcp:metadata mcp:operations</field>
+        <field name="active">True</field>
+    </record>
+
+</odoo>

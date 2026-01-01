@@ -191,11 +191,10 @@ curl -X POST "{oauth_url}" \\
             return "<div style='padding: 20px; color: #666;'><i>Configure web.base.url system parameter to see examples</i></div>"
 
         oauth_url = urljoin(_base_url, '/oauth/token')
-        mcp_url = urljoin(_base_url, '/mcp')
 
         return """
         <div style='padding: 10px; font-family: monospace;'>
-        <h3 style='color: #2e7bcf; margin-bottom: 15px;'>OAuth 2.0 Client Credentials (SEP-1046)</h3>
+        <h3 style='color: #2e7bcf; margin-bottom: 15px;'>OAuth 2.0 Client Credentials (RFC 6749)</h3>
 
         <div style='background: #e3f2fd; padding: 15px; border-radius: 5px; border-left: 4px solid #2196f3; margin-bottom: 15px;'>
             <strong>Setup Instructions:</strong><br/>
@@ -227,24 +226,18 @@ token_data = response.json()
 access_token = token_data['access_token']
 print(f"Access token obtained, expires in {{token_data['expires_in']}}s")</code></pre>
 
-        <h4 style='color: #666; margin-bottom: 10px; margin-top: 20px;'>Step 2: Use Access Token for MCP</h4>
-        <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #4caf50; overflow-x: auto;'><code style='color: #333;'># Use the access token for MCP requests
+        <h4 style='color: #666; margin-bottom: 10px; margin-top: 20px;'>Step 2: Use Access Token</h4>
+        <pre style='background: #f8f9fa; padding: 15px; border-radius: 5px; border-left: 4px solid #4caf50; overflow-x: auto;'><code style='color: #333;'># Use the access token for protected API requests
 headers = {{
     'Authorization': f'Bearer {{access_token}}',
     'Content-Type': 'application/json',
 }}
 
-mcp_request = {{
-    'jsonrpc': '2.0',
-    'id': '1',
-    'method': 'initialize',
-    'params': {{
-        'protocolVersion': '2024-11-05',
-        'clientInfo': {{'name': 'python-client'}}
-    }}
-}}
-
-response = requests.post("{mcp_url}", headers=headers, json=mcp_request)
+# Call any protected API endpoint
+response = requests.get(
+    "{base_url}/api/your-endpoint",
+    headers=headers
+)
 print(response.json())</code></pre>
 
         <div style='margin-top: 30px; padding: 15px; background: #e8f5e8; border-radius: 5px; border-left: 4px solid #4caf50;'>
@@ -259,6 +252,6 @@ print(response.json())</code></pre>
         </div>
         """.format(
             oauth_url=oauth_url,
-            mcp_url=mcp_url,
+            base_url=_base_url,
             lifetime=self.oauth_token_lifetime
         )

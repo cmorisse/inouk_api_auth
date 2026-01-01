@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!-- Device Flow: Consent Screen (same style as OAuth consent) -->
+    <template id="oauth_device_consent" name="Device Authorization Consent">
+        <t t-call="web.login_layout">
+            <div class="oe_login_form oauth-consent-form">
+                <h2 class="text-center mb-4">
+                    <i class="fa fa-terminal me-2"/>
+                    CLI Authorization
+                </h2>
+
+                <div class="alert alert-info mb-4">
+                    <strong><t t-esc="client.client_name"/></strong> is requesting access to your account.
+                </div>
+
+                <!-- Client info -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="bg-dark rounded me-3 d-flex align-items-center justify-content-center"
+                                 style="width: 48px; height: 48px;">
+                                <i class="fa fa-terminal text-white fa-lg"/>
+                            </div>
+                            <div>
+                                <h5 class="mb-0"><t t-esc="client.client_name"/></h5>
+                                <small class="text-muted">Command Line Interface</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Requested permissions -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fa fa-lock me-2"/>
+                            Requested Permissions
+                        </h6>
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <t t-foreach="scopes" t-as="scope_item">
+                            <li class="list-group-item">
+                                <div class="d-flex align-items-center">
+                                    <i class="fa fa-check-circle text-success me-2"/>
+                                    <div>
+                                        <strong><t t-esc="scope_item['name']"/></strong>
+                                        <br/>
+                                        <small class="text-muted"><t t-esc="scope_item['description']"/></small>
+                                    </div>
+                                </div>
+                            </li>
+                        </t>
+                    </ul>
+                </div>
+
+                <!-- User info -->
+                <div class="alert alert-secondary mb-4">
+                    <small>
+                        <i class="fa fa-user me-2"/>
+                        Logged in as: <strong><t t-esc="user.name"/></strong>
+                        (<t t-esc="user.email"/>)
+                    </small>
+                </div>
+
+                <!-- Decision form -->
+                <form method="POST" action="/oauth/device/authorize">
+                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                    <input type="hidden" name="device_code" t-att-value="device_auth.device_code"/>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" name="action" value="authorize"
+                                class="btn btn-primary btn-lg">
+                            <i class="fa fa-check me-2"/>
+                            Authorize CLI
+                        </button>
+                        <button type="submit" name="action" value="deny"
+                                class="btn btn-outline-secondary">
+                            <i class="fa fa-times me-2"/>
+                            Deny
+                        </button>
+                    </div>
+                </form>
+
+                <!-- Timeout notice -->
+                <div class="text-center mt-4">
+                    <small class="text-muted">
+                        <i class="fa fa-clock me-1"/>
+                        This authorization request expires in 15 minutes.
+                    </small>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- Device Flow: Enter Code Manually (OOB fallback) -->
+    <template id="oauth_device_enter_code" name="Enter Device Code">
+        <t t-call="web.login_layout">
+            <div class="oe_login_form oauth-consent-form">
+                <h2 class="text-center mb-4">
+                    <i class="fa fa-terminal me-2"/>
+                    Device Authorization
+                </h2>
+
+                <div class="alert alert-info mb-4">
+                    Enter the code displayed in your terminal to authorize access.
+                </div>
+
+                <form method="GET" action="/oauth/device">
+                    <div class="mb-3">
+                        <label for="user_code" class="form-label">Device Code</label>
+                        <input type="text" class="form-control form-control-lg text-center"
+                               id="user_code" name="user_code"
+                               placeholder="XXXX-XXXX"
+                               pattern="[A-Za-z0-9]{4}-?[A-Za-z0-9]{4}"
+                               autocomplete="off"
+                               style="font-family: monospace; letter-spacing: 0.2em; font-size: 1.5rem;"/>
+                        <small class="text-muted">Enter the 8-character code from your CLI</small>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fa fa-arrow-right me-2"/>
+                            Continue
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </t>
+    </template>
+
+    <!-- Device Flow: Success -->
+    <template id="oauth_device_success" name="Device Authorization Success">
+        <t t-call="web.login_layout">
+            <div class="oe_login_form oauth-consent-form text-center">
+                <div class="mb-4">
+                    <i class="fa fa-check-circle text-success" style="font-size: 4rem;"/>
+                </div>
+
+                <h2 class="mb-4">Authorization Successful!</h2>
+
+                <div class="alert alert-success mb-4">
+                    <strong><t t-esc="client.client_name"/></strong> has been authorized.
+                </div>
+
+                <p class="text-muted mb-4">
+                    You can now close this window and return to your terminal.
+                    <br/>
+                    The CLI should automatically continue.
+                </p>
+
+                <div class="text-muted">
+                    <small>
+                        <i class="fa fa-info-circle me-1"/>
+                        You can revoke this access at any time in your account settings.
+                    </small>
+                </div>
+            </div>
+        </t>
+    </template>
+
+    <!-- Device Flow: Denied -->
+    <template id="oauth_device_denied" name="Device Authorization Denied">
+        <t t-call="web.login_layout">
+            <div class="oe_login_form oauth-consent-form text-center">
+                <div class="mb-4">
+                    <i class="fa fa-times-circle text-danger" style="font-size: 4rem;"/>
+                </div>
+
+                <h2 class="mb-4">Authorization Denied</h2>
+
+                <div class="alert alert-warning mb-4">
+                    Access for <strong><t t-esc="client.client_name"/></strong> was denied.
+                </div>
+
+                <p class="text-muted mb-4">
+                    You can close this window.
+                    <br/>
+                    The CLI will receive an access denied error.
+                </p>
+            </div>
+        </t>
+    </template>
+
+    <!-- Device Flow: Error -->
+    <template id="oauth_device_error" name="Device Authorization Error">
+        <t t-call="web.login_layout">
+            <div class="oe_login_form oauth-consent-form text-center">
+                <div class="mb-4">
+                    <i class="fa fa-exclamation-triangle text-warning" style="font-size: 4rem;"/>
+                </div>
+
+                <h2 class="mb-4">Authorization Error</h2>
+
+                <div class="alert alert-danger mb-4">
+                    <t t-esc="error"/>
+                </div>
+
+                <p class="text-muted mb-4">
+                    Please try again from your CLI.
+                </p>
+
+                <div class="d-grid">
+                    <a href="/oauth/device" class="btn btn-outline-primary">
+                        <i class="fa fa-redo me-2"/>
+                        Enter Code Manually
+                    </a>
+                </div>
+            </div>
+        </t>
+    </template>
+
+</odoo>

@@ -1,2 +1,6 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_ik_api_auth_token,access_ik_api_auth_token,model_ik_api_auth_token,,1,1,1,1
+access_ik_api_auth_token,access_ik_api_auth_token,model_ik_api_auth_token,base.group_system,1,1,1,1
+access_ik_oauth_client_registration,access_ik_oauth_client_registration,model_ik_oauth_client_registration,base.group_system,1,1,1,1
+access_ik_oauth_authorization_code,access_ik_oauth_authorization_code,model_ik_oauth_authorization_code,base.group_system,1,1,1,1
+access_ik_oauth_refresh_token,access_ik_oauth_refresh_token,model_ik_oauth_refresh_token,base.group_system,1,1,1,1
+access_ik_oauth_device_code,access_ik_oauth_device_code,model_ik_oauth_device_code,base.group_system,1,1,1,1

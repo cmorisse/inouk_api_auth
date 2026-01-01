@@ -1,0 +1,345 @@
+# -*- coding: utf-8 -*-
+"""OAuth 2.1 Client Registration (RFC 7591)
+
+This module implements OAuth 2.1 client registration, supporting both
+dynamic client registration (DCR) and manual registration for clients
+like Claude.ai, CLI tools (mpy, mgx), and future mobile apps.
+"""
+
+import secrets
+import fnmatch
+from urllib.parse import urlparse
+
+from odoo import models, fields, api
+from odoo.exceptions import ValidationError
+
+
+class IkOAuthClientRegistration(models.Model):
+    _name = 'ik.oauth_client_registration'
+    _description = "OAuth 2.1 Client Registration"
+    _order = 'create_date desc'
+    _rec_name = 'client_name'
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # CLIENT IDENTIFICATION
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    client_id = fields.Char(
+        string="Client ID",
+        required=True,
+        index=True,
+        readonly=True,
+        copy=False,
+        default=lambda self: self._generate_client_id(),
+        help="Public client identifier (prefix: ikac_)"
+    )
+    client_secret = fields.Char(
+        string="Client Secret",
+        copy=False,
+        help="Client secret (optional for public clients). Prefix: ikacs_"
+    )
+    client_name = fields.Char(
+        string="Client Name",
+        required=True,
+        help="Human-readable client name (e.g., 'Claude', 'mpy CLI')"
+    )
+    client_uri = fields.Char(
+        string="Client URI",
+        help="URL of the client's home page"
+    )
+    logo_uri = fields.Char(
+        string="Logo URI",
+        help="URL of the client's logo for consent screen"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # REGISTRATION TYPE & STATE
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    registration_type = fields.Selection([
+        ('dynamic', 'Dynamic (DCR)'),
+        ('manual', 'Manual'),
+    ], string="Registration Type",
+       default='manual',
+       required=True,
+       help="How this client was registered"
+    )
+    active = fields.Boolean(
+        string="Active",
+        default=True,
+        help="Inactive clients cannot obtain new tokens"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # REDIRECT URIS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    redirect_uris = fields.Text(
+        string="Redirect URIs",
+        help="Newline-separated list of allowed redirect URIs. "
+             "HTTPS required except for localhost (CLI tools)."
+    )
+
+    @api.depends('redirect_uris')
+    def _compute_redirect_uri_list(self):
+        for record in self:
+            if record.redirect_uris:
+                uris = [u.strip() for u in record.redirect_uris.split('\n') if u.strip()]
+                record.redirect_uri_list = ', '.join(uris)
+            else:
+                record.redirect_uri_list = ''
+
+    redirect_uri_list = fields.Char(
+        string="Redirect URI List",
+        compute='_compute_redirect_uri_list',
+        help="Comma-separated list for display"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # GRANT TYPES & RESPONSE TYPES
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    grant_types = fields.Char(
+        string="Grant Types",
+        default='authorization_code,refresh_token',
+        required=True,
+        help="Space or comma-separated list of allowed grant types. "
+             "Options: authorization_code, refresh_token, client_credentials, "
+             "urn:ietf:params:oauth:grant-type:device_code"
+    )
+    response_types = fields.Selection([
+        ('code', 'Code'),
+    ], string="Response Types",
+       default='code',
+       required=True,
+       help="OAuth response type (only 'code' supported for OAuth 2.1)"
+    )
+    token_endpoint_auth_method = fields.Selection([
+        ('none', 'None (Public Client)'),
+        ('client_secret_post', 'Client Secret POST'),
+        ('client_secret_basic', 'Client Secret Basic'),
+    ], string="Token Endpoint Auth Method",
+       default='none',
+       required=True,
+       help="How the client authenticates at the token endpoint. "
+            "'none' for public clients like CLI tools."
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SCOPES
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    allowed_scopes = fields.Char(
+        string="Allowed Scopes",
+        default='mcp:discovery mcp:metadata mcp:source mcp:documentation mcp:debug mcp:operations',
+        help="Space-separated list of scopes this client can request"
+    )
+    default_scopes = fields.Char(
+        string="Default Scopes",
+        default='mcp:discovery mcp:metadata',
+        help="Scopes granted if none are requested"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # LIFECYCLE
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    client_secret_expires_at = fields.Datetime(
+        string="Client Secret Expires At",
+        help="When the client secret expires (empty = never)"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # RELATIONSHIPS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    authorization_code_ids = fields.One2many(
+        'ik.oauth_authorization_code',
+        'client_registration_id',
+        string="Authorization Codes"
+    )
+    refresh_token_ids = fields.One2many(
+        'ik.oauth_refresh_token',
+        'client_registration_id',
+        string="Refresh Tokens"
+    )
+    device_code_ids = fields.One2many(
+        'ik.oauth_device_code',
+        'client_registration_id',
+        string="Device Codes"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SQL CONSTRAINTS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    _sql_constraints = [
+        ('client_id_unique', 'unique(client_id)', 'Client ID must be unique'),
+    ]
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # METHODS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    @api.model
+    def _generate_client_id(self):
+        """Generate a unique client ID with prefix.
+
+        Returns:
+            str: Client ID in format 'ikac_XXXXXXXX' (128 bits of entropy)
+        """
+        return f"ikac_{secrets.token_urlsafe(16)}"
+
+    def generate_client_secret(self):
+        """Generate a client secret.
+
+        Returns:
+            str: The generated secret (also stored in client_secret field)
+        """
+        self.ensure_one()
+        secret = f"ikacs_{secrets.token_urlsafe(32)}"
+        self.write({'client_secret': secret})
+        return secret
+
+    def validate_redirect_uri(self, redirect_uri):
+        """Validate that redirect_uri is in the allowed list.
+
+        Supports exact match and localhost with any port for CLI tools.
+
+        Args:
+            redirect_uri: URI to validate
+
+        Returns:
+            bool: True if valid
+
+        Raises:
+            ValidationError: If URI is not allowed
+        """
+        self.ensure_one()
+        allowed = [u.strip() for u in (self.redirect_uris or '').split('\n') if u.strip()]
+
+        # Exact match
+        if redirect_uri in allowed:
+            return True
+
+        # Localhost pattern matching (for CLI tools with dynamic ports)
+        parsed = urlparse(redirect_uri)
+        if parsed.hostname in ('localhost', '127.0.0.1'):
+            for pattern in allowed:
+                if self._match_localhost_pattern(redirect_uri, pattern):
+                    return True
+
+        raise ValidationError(
+            f"redirect_uri '{redirect_uri}' is not registered for this client"
+        )
+
+    def _match_localhost_pattern(self, uri, pattern):
+        """Check if URI matches a localhost pattern with wildcard port.
+
+        Args:
+            uri: The actual redirect URI
+            pattern: The registered pattern (may contain :* for any port)
+
+        Returns:
+            bool: True if matches
+        """
+        if ':*' not in pattern:
+            return False
+
+        parsed_uri = urlparse(uri)
+        # Replace :* with a dummy port for parsing
+        parsed_pattern = urlparse(pattern.replace(':*', ':9999'))
+
+        # Must be same scheme (http for localhost)
+        if parsed_uri.scheme != parsed_pattern.scheme:
+            return False
+
+        # Must be localhost
+        if parsed_uri.hostname not in ('localhost', '127.0.0.1'):
+            return False
+        if parsed_pattern.hostname not in ('localhost', '127.0.0.1'):
+            return False
+
+        # Path must match
+        if parsed_uri.path != parsed_pattern.path:
+            return False
+
+        return True
+
+    def validate_scope(self, requested_scope):
+        """Validate and filter requested scopes.
+
+        Args:
+            requested_scope: Space-separated scope string
+
+        Returns:
+            str: Validated scope string (filtered to allowed scopes).
+                 Returns default_scopes if no valid scopes requested.
+        """
+        self.ensure_one()
+        allowed = set((self.allowed_scopes or '').split())
+        requested = set((requested_scope or '').split())
+
+        # Return intersection of requested and allowed
+        valid = allowed & requested
+        return ' '.join(sorted(valid)) if valid else (self.default_scopes or '')
+
+    def has_grant_type(self, grant_type):
+        """Check if client supports a specific grant type.
+
+        Args:
+            grant_type: The grant type to check (e.g., 'authorization_code',
+                       'urn:ietf:params:oauth:grant-type:device_code')
+
+        Returns:
+            bool: True if grant type is allowed
+        """
+        self.ensure_one()
+        grant_types = (self.grant_types or '').replace(',', ' ').split()
+        return grant_type in grant_types
+
+    @api.constrains('redirect_uris')
+    def _check_redirect_uris(self):
+        """Validate redirect URIs format.
+
+        - HTTPS required for non-localhost URIs
+        - localhost/127.0.0.1 can use HTTP (for CLI tools)
+        - Custom schemes allowed (for future mobile apps)
+        """
+        for record in self:
+            if not record.redirect_uris:
+                continue
+            for uri in record.redirect_uris.split('\n'):
+                uri = uri.strip()
+                if not uri:
+                    continue
+
+                parsed = urlparse(uri)
+
+                # Allow localhost with HTTP (for CLI tools)
+                if parsed.hostname in ('localhost', '127.0.0.1'):
+                    if parsed.scheme != 'http':
+                        raise ValidationError(
+                            f"Localhost redirect URIs must use http: {uri}"
+                        )
+                    continue
+
+                # Allow custom schemes (for mobile apps)
+                if parsed.scheme and '://' in uri and parsed.scheme not in ('http', 'https'):
+                    continue
+
+                # Require HTTPS for all other URIs
+                if not uri.startswith('https://'):
+                    raise ValidationError(
+                        f"Non-localhost redirect URIs must use HTTPS: {uri}"
+                    )
+
+    @api.constrains('token_endpoint_auth_method', 'client_secret')
+    def _check_client_secret(self):
+        """Ensure client_secret is set if auth method requires it."""
+        for record in self:
+            if record.token_endpoint_auth_method in ('client_secret_post', 'client_secret_basic'):
+                if not record.client_secret:
+                    raise ValidationError(
+                        f"Client secret is required for auth method: {record.token_endpoint_auth_method}"
+                    )

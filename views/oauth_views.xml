@@ -1,0 +1,365 @@
+<?xml version='1.0' encoding='utf-8'?>
+<odoo>
+    <data>
+        <!-- ═══════════════════════════════════════════════════════════════════════════
+             OAuth Client Registration Views
+             ═══════════════════════════════════════════════════════════════════════════ -->
+
+        <record id="ik_oauth_client_registration__treeview" model="ir.ui.view">
+            <field name="name">ik.oauth_client_registration.treeview</field>
+            <field name="model">ik.oauth_client_registration</field>
+            <field name="arch" type="xml">
+                <list>
+                    <field name="client_name"/>
+                    <field name="client_id"/>
+                    <field name="registration_type"/>
+                    <field name="token_endpoint_auth_method"/>
+                    <field name="grant_types" optional="hide"/>
+                    <field name="active"/>
+                    <field name="create_date"/>
+                </list>
+            </field>
+        </record>
+
+        <record id="ik_oauth_client_registration__formview" model="ir.ui.view">
+            <field name="name">ik.oauth_client_registration.formview</field>
+            <field name="model">ik.oauth_client_registration</field>
+            <field name="arch" type="xml">
+                <form>
+                    <header>
+                        <button name="generate_client_secret" type="object"
+                                string="Generate Secret" class="btn-warning" icon="fa-key"
+                                confirm="Generate a new client secret? The old one will be invalidated." />
+                    </header>
+                    <sheet>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="client_name" placeholder="Client Name"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group string="Identification">
+                                <field name="client_id"/>
+                                <field name="client_secret" password="True"/>
+                                <field name="client_uri"/>
+                                <field name="logo_uri"/>
+                                <field name="active"/>
+                            </group>
+                            <group string="OAuth Configuration">
+                                <field name="registration_type"/>
+                                <field name="token_endpoint_auth_method"/>
+                                <field name="response_types"/>
+                                <field name="grant_types"/>
+                                <field name="client_secret_expires_at"/>
+                            </group>
+                        </group>
+                        <group>
+                            <group string="Scopes">
+                                <field name="allowed_scopes"/>
+                                <field name="default_scopes"/>
+                            </group>
+                            <group string="Redirect URIs">
+                                <field name="redirect_uris" nolabel="1" placeholder="One URI per line&#10;http://localhost:*/callback for CLI tools"/>
+                            </group>
+                        </group>
+                        <notebook>
+                            <page string="Authorization Codes">
+                                <field name="authorization_code_ids" readonly="1">
+                                    <list>
+                                        <field name="code" groups="base.group_no_one"/>
+                                        <field name="user_id"/>
+                                        <field name="scope"/>
+                                        <field name="expires_at"/>
+                                        <field name="used"/>
+                                        <field name="create_date"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Refresh Tokens">
+                                <field name="refresh_token_ids" readonly="1">
+                                    <list>
+                                        <field name="token" groups="base.group_no_one"/>
+                                        <field name="user_id"/>
+                                        <field name="scope"/>
+                                        <field name="expires_at"/>
+                                        <field name="revoked"/>
+                                        <field name="use_count"/>
+                                        <field name="last_used_at"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Device Codes">
+                                <field name="device_code_ids" readonly="1">
+                                    <list>
+                                        <field name="user_code"/>
+                                        <field name="state"/>
+                                        <field name="user_id"/>
+                                        <field name="expires_at"/>
+                                        <field name="create_date"/>
+                                    </list>
+                                </field>
+                            </page>
+                            <page string="Technical Info" groups="base.group_no_one">
+                                <group>
+                                    <field name="id"/>
+                                    <field name="create_date"/>
+                                    <field name="write_date"/>
+                                </group>
+                            </page>
+                        </notebook>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <record id="ik_oauth_client_registration__actwindow" model="ir.actions.act_window">
+            <field name="name">OAuth Clients</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="res_model">ik.oauth_client_registration</field>
+            <field name="view_mode">list,form</field>
+        </record>
+
+        <!-- ═══════════════════════════════════════════════════════════════════════════
+             OAuth Authorization Code Views
+             ═══════════════════════════════════════════════════════════════════════════ -->
+
+        <record id="ik_oauth_authorization_code__treeview" model="ir.ui.view">
+            <field name="name">ik.oauth_authorization_code.treeview</field>
+            <field name="model">ik.oauth_authorization_code</field>
+            <field name="arch" type="xml">
+                <list>
+                    <field name="code" groups="base.group_no_one"/>
+                    <field name="client_id"/>
+                    <field name="user_id"/>
+                    <field name="scope"/>
+                    <field name="redirect_uri" optional="hide"/>
+                    <field name="expires_at"/>
+                    <field name="used"/>
+                    <field name="used_at" optional="hide"/>
+                    <field name="create_date"/>
+                </list>
+            </field>
+        </record>
+
+        <record id="ik_oauth_authorization_code__formview" model="ir.ui.view">
+            <field name="name">ik.oauth_authorization_code.formview</field>
+            <field name="model">ik.oauth_authorization_code</field>
+            <field name="arch" type="xml">
+                <form create="0" edit="0">
+                    <header>
+                        <button name="unlink" type="object" string="Delete"
+                                class="btn-danger" icon="fa-trash"
+                                confirm="Delete this authorization code?" />
+                    </header>
+                    <sheet>
+                        <group>
+                            <group string="Authorization">
+                                <field name="code" groups="base.group_no_one"/>
+                                <field name="client_registration_id"/>
+                                <field name="client_id"/>
+                                <field name="user_id"/>
+                                <field name="scope"/>
+                            </group>
+                            <group string="Status">
+                                <field name="expires_at"/>
+                                <field name="used"/>
+                                <field name="used_at"/>
+                            </group>
+                        </group>
+                        <group>
+                            <group string="Request Parameters">
+                                <field name="redirect_uri"/>
+                                <field name="state"/>
+                                <field name="resource"/>
+                            </group>
+                            <group string="PKCE">
+                                <field name="code_challenge"/>
+                                <field name="code_challenge_method"/>
+                            </group>
+                        </group>
+                        <group string="Technical Info" groups="base.group_no_one">
+                            <field name="id"/>
+                            <field name="create_date"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <record id="ik_oauth_authorization_code__actwindow" model="ir.actions.act_window">
+            <field name="name">Authorization Codes</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="res_model">ik.oauth_authorization_code</field>
+            <field name="view_mode">list,form</field>
+        </record>
+
+        <!-- ═══════════════════════════════════════════════════════════════════════════
+             OAuth Refresh Token Views
+             ═══════════════════════════════════════════════════════════════════════════ -->
+
+        <record id="ik_oauth_refresh_token__treeview" model="ir.ui.view">
+            <field name="name">ik.oauth_refresh_token.treeview</field>
+            <field name="model">ik.oauth_refresh_token</field>
+            <field name="arch" type="xml">
+                <list>
+                    <field name="token" groups="base.group_no_one"/>
+                    <field name="client_id"/>
+                    <field name="user_id"/>
+                    <field name="scope"/>
+                    <field name="expires_at"/>
+                    <field name="revoked" decoration-danger="revoked"/>
+                    <field name="use_count"/>
+                    <field name="last_used_at"/>
+                    <field name="create_date" optional="hide"/>
+                </list>
+            </field>
+        </record>
+
+        <record id="ik_oauth_refresh_token__formview" model="ir.ui.view">
+            <field name="name">ik.oauth_refresh_token.formview</field>
+            <field name="model">ik.oauth_refresh_token</field>
+            <field name="arch" type="xml">
+                <form create="0" edit="0">
+                    <header>
+                        <button name="revoke" type="object" string="Revoke"
+                                class="btn-warning" icon="fa-ban"
+                                invisible="revoked"
+                                confirm="Revoke this refresh token? The associated access token will also be invalidated." />
+                        <button name="unlink" type="object" string="Delete"
+                                class="btn-danger" icon="fa-trash"
+                                confirm="Delete this refresh token?" />
+                    </header>
+                    <sheet>
+                        <div class="alert alert-danger" role="alert" invisible="not revoked">
+                            <strong>Revoked</strong> - This token was revoked on <field name="revoked_at" nolabel="1" class="oe_inline"/>
+                        </div>
+                        <group>
+                            <group string="Token">
+                                <field name="token" groups="base.group_no_one"/>
+                                <field name="client_registration_id"/>
+                                <field name="client_id"/>
+                                <field name="user_id"/>
+                                <field name="access_token_id"/>
+                            </group>
+                            <group string="Status">
+                                <field name="expires_at"/>
+                                <field name="revoked"/>
+                                <field name="revoked_at" invisible="not revoked"/>
+                            </group>
+                        </group>
+                        <group>
+                            <group string="Authorization Context">
+                                <field name="scope"/>
+                                <field name="resource"/>
+                            </group>
+                            <group string="Usage Statistics">
+                                <field name="use_count"/>
+                                <field name="last_used_at"/>
+                                <field name="create_date"/>
+                            </group>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <record id="ik_oauth_refresh_token__actwindow" model="ir.actions.act_window">
+            <field name="name">Refresh Tokens</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="res_model">ik.oauth_refresh_token</field>
+            <field name="view_mode">list,form</field>
+        </record>
+
+        <!-- ═══════════════════════════════════════════════════════════════════════════
+             OAuth Device Code Views
+             ═══════════════════════════════════════════════════════════════════════════ -->
+
+        <record id="ik_oauth_device_code__treeview" model="ir.ui.view">
+            <field name="name">ik.oauth_device_code.treeview</field>
+            <field name="model">ik.oauth_device_code</field>
+            <field name="arch" type="xml">
+                <list>
+                    <field name="user_code"/>
+                    <field name="client_registration_id"/>
+                    <field name="state" decoration-success="state == 'authorized'" decoration-warning="state == 'pending'" decoration-danger="state in ('denied', 'expired')"/>
+                    <field name="user_id"/>
+                    <field name="scope" optional="hide"/>
+                    <field name="expires_at"/>
+                    <field name="create_date"/>
+                </list>
+            </field>
+        </record>
+
+        <record id="ik_oauth_device_code__formview" model="ir.ui.view">
+            <field name="name">ik.oauth_device_code.formview</field>
+            <field name="model">ik.oauth_device_code</field>
+            <field name="arch" type="xml">
+                <form create="0" edit="0">
+                    <header>
+                        <button name="unlink" type="object" string="Delete"
+                                class="btn-danger" icon="fa-trash"
+                                confirm="Delete this device code?" />
+                    </header>
+                    <sheet>
+                        <div class="oe_button_box" name="button_box">
+                            <button class="oe_stat_button" type="object"
+                                    name="authorize" string="Authorize"
+                                    icon="fa-check"
+                                    invisible="state != 'pending'"
+                                    groups="base.group_no_one"/>
+                            <button class="oe_stat_button" type="object"
+                                    name="deny" string="Deny"
+                                    icon="fa-times"
+                                    invisible="state != 'pending'"
+                                    groups="base.group_no_one"/>
+                        </div>
+                        <div class="oe_title">
+                            <h1>
+                                <field name="user_code" readonly="1"/>
+                            </h1>
+                        </div>
+                        <group>
+                            <group string="Device Authorization">
+                                <field name="device_code" groups="base.group_no_one"/>
+                                <field name="client_registration_id"/>
+                                <field name="state"/>
+                                <field name="user_id"/>
+                            </group>
+                            <group string="Timing">
+                                <field name="expires_at"/>
+                                <field name="poll_interval"/>
+                                <field name="last_poll_at"/>
+                            </group>
+                        </group>
+                        <group>
+                            <group string="Request">
+                                <field name="scope"/>
+                                <field name="resource"/>
+                                <field name="granted_scope" invisible="state != 'authorized'"/>
+                            </group>
+                            <group string="Verification URIs">
+                                <field name="verification_uri"/>
+                                <field name="verification_uri_complete" widget="url"/>
+                            </group>
+                        </group>
+                        <group string="Authorization Code" invisible="not authorization_code_id">
+                            <field name="authorization_code_id"/>
+                        </group>
+                        <group string="Technical Info" groups="base.group_no_one">
+                            <field name="id"/>
+                            <field name="create_date"/>
+                        </group>
+                    </sheet>
+                </form>
+            </field>
+        </record>
+
+        <record id="ik_oauth_device_code__actwindow" model="ir.actions.act_window">
+            <field name="name">Device Codes</field>
+            <field name="type">ir.actions.act_window</field>
+            <field name="res_model">ik.oauth_device_code</field>
+            <field name="view_mode">list,form</field>
+        </record>
+
+    </data>
+</odoo>

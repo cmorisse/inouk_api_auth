@@ -48,6 +48,7 @@ Features:
 
         # views
         'views/api_auth_token_views.xml',
+        'views/oauth_views.xml',
         'views/res_config_settings_views.xml',
         'views/oauth_consent_templates.xml',
         'views/oauth_device_templates.xml',

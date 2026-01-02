@@ -166,6 +166,31 @@ class OAuthController(http.Controller):
         else:
             grant_types = grant_types_input
 
+        # ──────────────────────────────────────────────────────────────────────────
+        # RFC 7591 Public Client Handling
+        # ──────────────────────────────────────────────────────────────────────────
+        # Some clients (e.g., Claude.ai) request 'client_secret_post' as their
+        # preferred auth method but don't provide a client_secret. This is
+        # technically a public client configuration.
+        #
+        # Per RFC 7591 Section 2, if no secret is provided, the client is a
+        # public client and MUST use 'none' as token_endpoint_auth_method.
+        # We auto-correct this to avoid breaking DCR for well-intentioned clients.
+        # ──────────────────────────────────────────────────────────────────────────
+        requested_auth_method = data.get('token_endpoint_auth_method', 'none')
+        client_secret = data.get('client_secret')
+
+        if requested_auth_method in ('client_secret_post', 'client_secret_basic') and not client_secret:
+            # Client requested secret-based auth but provided no secret
+            # → Treat as public client (PKCE will handle security)
+            token_endpoint_auth_method = 'none'
+            _logger.info(
+                "OAuth DCR: Client '%s' requested '%s' without secret, auto-correcting to 'none' (public client)",
+                client_name, requested_auth_method
+            )
+        else:
+            token_endpoint_auth_method = requested_auth_method
+
         client = ClientReg.create({
             'client_name': client_name,
             'redirect_uris': '\n'.join(redirect_uris) if redirect_uris else '',
@@ -174,7 +199,7 @@ class OAuthController(http.Controller):
             'logo_uri': data.get('logo_uri'),
             'grant_types': grant_types,
             'response_types': 'code',
-            'token_endpoint_auth_method': data.get('token_endpoint_auth_method', 'none'),
+            'token_endpoint_auth_method': token_endpoint_auth_method,
             'allowed_scopes': data.get('scope', 'mcp:discovery mcp:metadata mcp:operations'),
         })
 
@@ -277,6 +302,10 @@ class OAuthController(http.Controller):
         code_challenge_method = kwargs.get('code_challenge_method')
         resource = kwargs.get('resource')
 
+        # DEBUG: Log redirect_uri on both GET and POST
+        _logger.info("OAuth authorize %s: redirect_uri = '%s'",
+                    request.httprequest.method, redirect_uri)
+
         # ═══════════════════════════════════════════════════════════════════════
         # VALIDATION
         # ═══════════════════════════════════════════════════════════════════════
@@ -355,7 +384,12 @@ class OAuthController(http.Controller):
             if state:
                 redirect_url += f"&state={state}"
 
-            return request.redirect(redirect_url)
+            # DEBUG: Log final redirect URL
+            _logger.info("OAuth authorize: Redirecting to '%s'", redirect_url)
+
+            # IMPORTANT: local=False allows redirect to external domains (e.g., claude.ai)
+            # This is required for OAuth callback to work with external clients
+            return request.redirect(redirect_url, local=False)
 
         # ═══════════════════════════════════════════════════════════════════════
         # DISPLAY CONSENT SCREEN
@@ -657,8 +691,8 @@ class OAuthController(http.Controller):
             'oauth21_scope': scope,
             'oauth21_resource': resource,
         })
-        # Generate the static token value
-        access_token.generate_credentials_header()
+        # Generate the static token value and save it
+        access_token.static_token = access_token.generate_credentials_header()
 
         # Handle refresh token
         rotate_refresh = ICP.get_param(
@@ -919,4 +953,5 @@ class OAuthController(http.Controller):
             params['state'] = state
 
         redirect_url = f"{redirect_uri}?{urlencode(params)}"
-        return request.redirect(redirect_url)
+        # local=False: Allow redirect to external domains (OAuth clients like claude.ai)
+        return request.redirect(redirect_url, local=False)

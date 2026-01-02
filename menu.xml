@@ -1,8 +1,41 @@
-<openerp>
+<?xml version='1.0' encoding='utf-8'?>
+<odoo>
     <data noupdate="0">
-                <menuitem id="api_auth_token__menuitem"
-                          parent="inouk_core.api_mainmmenu"
-                          sequence="10000"
-                          action="ik_api_auth_token__actwindow" />
+        <!-- API Auth submenu under API -->
+        <menuitem id="api_auth__submenu"
+                  name="API Auth"
+                  parent="inouk_core.api_mainmmenu"
+                  sequence="10000" />
+
+        <!-- Menu items -->
+        <menuitem id="api_auth_token__menuitem"
+                  name="API Auth Tokens"
+                  parent="api_auth__submenu"
+                  sequence="100"
+                  action="ik_api_auth_token__actwindow" />
+
+        <menuitem id="oauth_client_registration__menuitem"
+                  name="OAuth Clients"
+                  parent="api_auth__submenu"
+                  sequence="200"
+                  action="ik_oauth_client_registration__actwindow" />
+
+        <menuitem id="oauth_authorization_code__menuitem"
+                  name="Authorization Codes"
+                  parent="api_auth__submenu"
+                  sequence="300"
+                  action="ik_oauth_authorization_code__actwindow" />
+
+        <menuitem id="oauth_refresh_token__menuitem"
+                  name="Refresh Tokens"
+                  parent="api_auth__submenu"
+                  sequence="400"
+                  action="ik_oauth_refresh_token__actwindow" />
+
+        <menuitem id="oauth_device_code__menuitem"
+                  name="Device Codes"
+                  parent="api_auth__submenu"
+                  sequence="500"
+                  action="ik_oauth_device_code__actwindow" />
     </data>
-</openerp>
+</odoo>

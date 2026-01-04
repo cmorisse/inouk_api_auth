@@ -280,19 +280,27 @@ class IkOAuthDeviceCode(models.Model):
 
         return {'error': 'server_error', 'error_description': 'Unknown state'}
 
-    def authorize(self, user_obj, granted_scope=None):
+    def btn_authorize(self):
+        """Button action to authorize device request using current user."""
+        self.ensure_one()
+        return self.authorize()
+
+    def authorize(self, user_obj=None, granted_scope=None):
         """Authorize the device request.
 
         Called when user clicks "Authorize" on the consent screen.
 
         Args:
-            user_obj: res.users record of the authorizing user
+            user_obj: res.users record of the authorizing user (defaults to current user)
             granted_scope: Scopes granted (defaults to requested scope)
 
         Raises:
             ValidationError: If not pending or expired
         """
         self.ensure_one()
+        if user_obj is None:
+            user_obj = self.env.user
+
         if self.state != 'pending':
             raise ValidationError("Device authorization is not pending")
 

@@ -387,9 +387,15 @@ class OAuthController(http.Controller):
             # DEBUG: Log final redirect URL
             _logger.info("OAuth authorize: Redirecting to '%s'", redirect_url)
 
-            # IMPORTANT: local=False allows redirect to external domains (e.g., claude.ai)
-            # This is required for OAuth callback to work with external clients
-            return request.redirect(redirect_url, local=False)
+            # Show success page with delayed redirect via JavaScript.
+            # This provides better UX than a direct 302 redirect which leaves
+            # the consent page spinning while the browser follows the redirect.
+            # NOTE: The redirect_url may be external (e.g., claude.ai callback or
+            # localhost for Claude Desktop) - the JS redirect handles this properly.
+            return request.render('inouk_api_auth.oauth_consent_success', {
+                'client_name': client.client_name,
+                'redirect_url': redirect_url,
+            })
 
         # ═══════════════════════════════════════════════════════════════════════
         # DISPLAY CONSENT SCREEN

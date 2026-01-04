@@ -3,123 +3,190 @@
 
     <!-- OAuth 2.1 Authorization Consent Screen -->
     <template id="oauth_consent" name="OAuth Consent Screen">
-        <t t-call="web.login_layout">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <t t-set="body_classname" t-value="'bg-100'"/>
+
             <style>
-                .oauth-consent-form {
-                    max-width: 450px;
+                .oauth-consent-container {
+                    max-width: 700px;
                     margin: 0 auto;
                     padding: 2rem;
                 }
-                .oauth-consent-form .card {
+                .oauth-consent-container .card {
                     border-radius: 0.5rem;
                     box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
                 }
-                .oauth-consent-form .btn-primary {
+                .oauth-consent-container .btn-primary {
                     background-color: #7C3AED;
                     border-color: #7C3AED;
                 }
-                .oauth-consent-form .btn-primary:hover {
+                .oauth-consent-container .btn-primary:hover {
                     background-color: #6D28D9;
                     border-color: #6D28D9;
                 }
             </style>
-            <div class="oe_login_form oauth-consent-form">
-                <h2 class="text-center mb-4">Authorization Request</h2>
 
-                <div class="alert alert-info mb-4">
-                    <strong><t t-esc="client.client_name"/></strong> is requesting access to your account.
-                </div>
+            <div class="container py-5">
+                <div class="oauth-consent-container bg-white rounded shadow-sm p-4">
+                    <!-- Company logo -->
+                    <div class="text-center pb-3 border-bottom mb-4">
+                        <img t-attf-src="/web/binary/company_logo{{ '?dbname='+db if db else '' }}"
+                             alt="Logo" style="max-height:120px; max-width: 100%; width:auto"/>
+                    </div>
 
-                <!-- Client info -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <div class="d-flex align-items-center mb-3">
-                            <t t-if="client.logo_uri">
-                                <img t-att-src="client.logo_uri" class="rounded me-3" style="max-width: 48px; max-height: 48px;" alt="Client Logo"/>
-                            </t>
-                            <t t-else="">
-                                <div class="bg-secondary rounded me-3 d-flex align-items-center justify-content-center"
-                                     style="width: 48px; height: 48px;">
-                                    <i class="fa fa-plug text-white fa-lg"/>
+                    <h2 class="text-center mb-4">Authorization Request</h2>
+
+                    <div class="alert alert-info mb-4">
+                        <strong><t t-esc="client.client_name"/></strong> is requesting access to your account.
+                    </div>
+
+                    <!-- Client info -->
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center mb-3">
+                                <t t-if="client.logo_uri">
+                                    <img t-att-src="client.logo_uri" class="rounded me-3" style="max-width: 48px; max-height: 48px;" alt="Client Logo"/>
+                                </t>
+                                <t t-else="">
+                                    <div class="bg-secondary rounded me-3 d-flex align-items-center justify-content-center"
+                                         style="width: 48px; height: 48px;">
+                                        <i class="fa fa-plug text-white fa-lg"/>
+                                    </div>
+                                </t>
+                                <div>
+                                    <h5 class="mb-0"><t t-esc="client.client_name"/></h5>
+                                    <small class="text-muted" t-if="client.client_uri">
+                                        <t t-esc="client.client_uri"/>
+                                    </small>
                                 </div>
-                            </t>
-                            <div>
-                                <h5 class="mb-0"><t t-esc="client.client_name"/></h5>
-                                <small class="text-muted" t-if="client.client_uri">
-                                    <t t-esc="client.client_uri"/>
-                                </small>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Requested permissions -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h6 class="mb-0">
-                            <i class="fa fa-lock me-2"/>
-                            Requested Permissions
-                        </h6>
-                    </div>
-                    <ul class="list-group list-group-flush">
-                        <t t-foreach="scopes" t-as="scope_item">
-                            <li class="list-group-item">
-                                <div class="d-flex align-items-center">
-                                    <i class="fa fa-check-circle text-success me-2"/>
-                                    <div>
-                                        <strong><t t-esc="scope_item['name']"/></strong>
-                                        <br/>
-                                        <small class="text-muted"><t t-esc="scope_item['description']"/></small>
+                    <!-- Requested permissions -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">
+                                <i class="fa fa-lock me-2"/>
+                                Requested Permissions
+                            </h6>
+                        </div>
+                        <ul class="list-group list-group-flush">
+                            <t t-foreach="scopes" t-as="scope_item">
+                                <li class="list-group-item">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fa fa-check-circle text-success me-2"/>
+                                        <div>
+                                            <strong><t t-esc="scope_item['name']"/></strong>
+                                            <br/>
+                                            <small class="text-muted"><t t-esc="scope_item['description']"/></small>
+                                        </div>
                                     </div>
-                                </div>
-                            </li>
-                        </t>
-                    </ul>
-                </div>
-
-                <!-- User info -->
-                <div class="alert alert-secondary mb-4">
-                    <small>
-                        <i class="fa fa-user me-2"/>
-                        Logged in as: <strong><t t-esc="user.name"/></strong>
-                        (<t t-esc="user.email"/>)
-                    </small>
-                </div>
-
-                <!-- Decision form -->
-                <form method="POST" action="/oauth/authorize">
-                    <!-- Hidden fields to preserve authorization parameters -->
-                    <input type="hidden" name="response_type" value="code"/>
-                    <input type="hidden" name="client_id" t-att-value="client.client_id"/>
-                    <input type="hidden" name="redirect_uri" t-att-value="redirect_uri"/>
-                    <input type="hidden" name="scope" t-att-value="scope"/>
-                    <input type="hidden" name="state" t-att-value="state"/>
-                    <input type="hidden" name="code_challenge" t-att-value="code_challenge"/>
-                    <input type="hidden" name="code_challenge_method" t-att-value="code_challenge_method"/>
-                    <input type="hidden" name="resource" t-att-value="resource"/>
-
-                    <div class="d-grid gap-2">
-                        <button type="submit" name="decision" value="allow"
-                                class="btn btn-primary btn-lg">
-                            <i class="fa fa-check me-2"/>
-                            Authorize
-                        </button>
-                        <button type="submit" name="decision" value="deny"
-                                class="btn btn-outline-secondary">
-                            <i class="fa fa-times me-2"/>
-                            Deny
-                        </button>
+                                </li>
+                            </t>
+                        </ul>
                     </div>
-                </form>
 
-                <!-- Security notice -->
-                <div class="text-center mt-4">
-                    <small class="text-muted">
-                        <i class="fa fa-shield-alt me-1"/>
-                        You can revoke this access at any time in your account settings.
-                    </small>
+                    <!-- User info -->
+                    <div class="alert alert-secondary mb-4">
+                        <small>
+                            <i class="fa fa-user me-2"/>
+                            Logged in as: <strong><t t-esc="user.name"/></strong>
+                            (<t t-esc="user.email"/>)
+                        </small>
+                    </div>
+
+                    <!-- Decision form -->
+                    <form method="POST" action="/oauth/authorize">
+                        <!-- Hidden fields to preserve authorization parameters -->
+                        <input type="hidden" name="response_type" value="code"/>
+                        <input type="hidden" name="client_id" t-att-value="client.client_id"/>
+                        <input type="hidden" name="redirect_uri" t-att-value="redirect_uri"/>
+                        <input type="hidden" name="scope" t-att-value="scope"/>
+                        <input type="hidden" name="state" t-att-value="state"/>
+                        <input type="hidden" name="code_challenge" t-att-value="code_challenge"/>
+                        <input type="hidden" name="code_challenge_method" t-att-value="code_challenge_method"/>
+                        <input type="hidden" name="resource" t-att-value="resource"/>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" name="decision" value="allow"
+                                    class="btn btn-primary btn-lg">
+                                <i class="fa fa-check me-2"/>
+                                Authorize
+                            </button>
+                            <button type="submit" name="decision" value="deny"
+                                    class="btn btn-outline-secondary">
+                                <i class="fa fa-times me-2"/>
+                                Deny
+                            </button>
+                        </div>
+                    </form>
+
+                    <!-- Security notice -->
+                    <div class="text-center mt-4">
+                        <small class="text-muted">
+                            <i class="fa fa-shield-alt me-1"/>
+                            You can revoke this access at any time in your account settings.
+                        </small>
+                    </div>
                 </div>
             </div>
+        </t>
+    </template>
+
+    <!-- OAuth 2.1 Authorization Success Screen -->
+    <template id="oauth_consent_success" name="OAuth Authorization Success">
+        <t t-call="web.frontend_layout">
+            <t t-set="no_header" t-value="True"/>
+            <t t-set="no_footer" t-value="True"/>
+            <t t-set="body_classname" t-value="'bg-100'"/>
+
+            <style>
+                .oauth-success-container {
+                    max-width: 500px;
+                    margin: 0 auto;
+                    padding: 2rem;
+                    text-align: center;
+                }
+                .oauth-success-container .success-icon {
+                    font-size: 4rem;
+                    color: #22c55e;
+                    margin-bottom: 1rem;
+                }
+            </style>
+
+            <div class="container py-5">
+                <div class="oauth-success-container bg-white rounded shadow-sm p-4" t-att-data-redirect-url="redirect_url">
+                    <!-- Company logo -->
+                    <div class="text-center pb-3 border-bottom mb-4">
+                        <img t-attf-src="/web/binary/company_logo{{ '?dbname='+db if db else '' }}"
+                             alt="Logo" style="max-height:120px; max-width: 100%; width:auto"/>
+                    </div>
+
+                    <i class="fa fa-check-circle success-icon"/>
+                    <h2 class="mb-3">Authorization Successful</h2>
+                    <p class="text-muted mb-4">
+                        You have authorized <strong><t t-esc="client_name"/></strong>.
+                        <br/>
+                        You can close this tab and return to the application.
+                    </p>
+                    <p class="text-muted small">
+                        <i class="fa fa-spinner fa-spin me-2"/>
+                        Redirecting...
+                    </p>
+                </div>
+            </div>
+
+            <script>
+                // Redirect after a short delay to ensure the page is displayed
+                // Using data attribute to avoid HTML encoding issues with URL parameters
+                setTimeout(function() {
+                    var container = document.querySelector('.oauth-success-container');
+                    window.location.href = container.dataset.redirectUrl;
+                }, 500);
+            </script>
         </t>
     </template>
 

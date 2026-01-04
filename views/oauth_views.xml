@@ -303,7 +303,7 @@
                     <sheet>
                         <div class="oe_button_box" name="button_box">
                             <button class="oe_stat_button" type="object"
-                                    name="authorize" string="Authorize"
+                                    name="btn_authorize" string="Authorize"
                                     icon="fa-check"
                                     invisible="state != 'pending'"
                                     groups="base.group_no_one"/>

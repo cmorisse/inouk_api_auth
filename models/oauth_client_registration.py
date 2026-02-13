@@ -126,6 +126,17 @@ class IkOAuthClientRegistration(models.Model):
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # SENSITIVE DATA ACCESS
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    allow_sensitive_data = fields.Boolean(
+        string="Allow Sensitive Data",
+        default=False,
+        help="If True, password_fields are returned in clear for MCP read operations. "
+             "Auto-set for mgx-* clients at client creation."
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # SCOPES
     # ═══════════════════════════════════════════════════════════════════════════
 
@@ -180,6 +191,20 @@ class IkOAuthClientRegistration(models.Model):
     # ═══════════════════════════════════════════════════════════════════════════
     # METHODS
     # ═══════════════════════════════════════════════════════════════════════════
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        """Override create to auto-set allow_sensitive_data for mgx-* clients.
+
+        Clients with client_name starting with 'mgx-' (Manganese CLI) are assumed
+        to be authorized CLI tools that need access to sensitive data like
+        credentials for automated deployments.
+        """
+        for vals in vals_list:
+            client_name = vals.get('client_name', '')
+            if client_name.startswith('mgx-') and 'allow_sensitive_data' not in vals:
+                vals['allow_sensitive_data'] = True
+        return super().create(vals_list)
 
     @api.model
     def _generate_client_id(self):

@@ -200,7 +200,8 @@ class OAuthController(http.Controller):
             'grant_types': grant_types,
             'response_types': 'code',
             'token_endpoint_auth_method': token_endpoint_auth_method,
-            'allowed_scopes': data.get('scope', 'mcp:discovery mcp:metadata mcp:operations'),
+            # Include all MCP scopes - clients can request any subset during authorization
+            'allowed_scopes': data.get('scope', 'mcp:discovery mcp:source mcp:documentation mcp:read mcp:debug mcp:write mcp:execute'),
         })
 
         # Generate secret if auth method requires it
@@ -404,12 +405,20 @@ class OAuthController(http.Controller):
         # Parse scopes for display
         scope_list = validated_scope.split() if validated_scope else []
         scope_descriptions = {
+            # Level 1: Discovery
             'mcp:discovery': ('Discovery', 'List available domains and models'),
-            'mcp:metadata': ('Metadata', 'Read model fields and methods'),
-            'mcp:source': ('Source Code', 'Read method source code'),
-            'mcp:documentation': ('Documentation', 'Read and write documentation'),
-            'mcp:debug': ('Debug', 'Analyze stacktraces'),
-            'mcp:operations': ('Operations', 'Execute operations (read, write, create, delete)'),
+            # Level 2: Source code
+            'mcp:source': ('Source Code', 'Read Python method source code'),
+            # Level 3: Documentation
+            'mcp:documentation': ('Documentation', 'Access .ai.md documentation files'),
+            # Level 4: Read data
+            'mcp:read': ('Read Data', 'Search and read records from the database'),
+            # Level 5: Debug
+            'mcp:debug': ('Debug', 'Analyze Python stacktraces'),
+            # Level 6: Write data
+            'mcp:write': ('Write Data', 'Create, modify, and delete records'),
+            # Level 7: Execute
+            'mcp:execute': ('Execute Methods', 'Call whitelisted methods on records'),
         }
 
         scopes_display = []

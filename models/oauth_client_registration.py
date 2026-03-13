@@ -142,12 +142,12 @@ class IkOAuthClientRegistration(models.Model):
 
     allowed_scopes = fields.Char(
         string="Allowed Scopes",
-        default='mcp:discovery mcp:metadata mcp:source mcp:documentation mcp:debug mcp:operations',
+        default='mcp:discovery mcp:source mcp:documentation mcp:read mcp:debug mcp:write mcp:execute',
         help="Space-separated list of scopes this client can request"
     )
     default_scopes = fields.Char(
         string="Default Scopes",
-        default='mcp:discovery mcp:metadata',
+        default='mcp:discovery mcp:read',
         help="Scopes granted if none are requested"
     )
 
@@ -179,6 +179,49 @@ class IkOAuthClientRegistration(models.Model):
         'client_registration_id',
         string="Device Codes"
     )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # COMPUTED COUNTS (for stat buttons)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    refresh_token_count = fields.Integer(
+        string="Refresh Token Count",
+        compute='_compute_token_counts'
+    )
+    device_code_count = fields.Integer(
+        string="Device Code Count",
+        compute='_compute_token_counts'
+    )
+
+    @api.depends('refresh_token_ids', 'device_code_ids')
+    def _compute_token_counts(self):
+        for record in self:
+            record.refresh_token_count = len(record.refresh_token_ids)
+            record.device_code_count = len(record.device_code_ids)
+
+    def action_view_refresh_tokens(self):
+        """Open refresh tokens for this client."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'Refresh Tokens - {self.client_name}',
+            'res_model': 'ik.oauth_refresh_token',
+            'view_mode': 'list,form',
+            'domain': [('client_registration_id', '=', self.id)],
+            'context': {'default_client_registration_id': self.id},
+        }
+
+    def action_view_device_codes(self):
+        """Open device codes for this client."""
+        self.ensure_one()
+        return {
+            'type': 'ir.actions.act_window',
+            'name': f'Device Codes - {self.client_name}',
+            'res_model': 'ik.oauth_device_code',
+            'view_mode': 'list,form',
+            'domain': [('client_registration_id', '=', self.id)],
+            'context': {'default_client_registration_id': self.id},
+        }
 
     # ═══════════════════════════════════════════════════════════════════════════
     # SQL CONSTRAINTS
@@ -298,16 +341,19 @@ class IkOAuthClientRegistration(models.Model):
             requested_scope: Space-separated scope string
 
         Returns:
-            str: Validated scope string (filtered to allowed scopes).
-                 Returns default_scopes if no valid scopes requested.
+            str: Validated scope string. Combines:
+                 - default_scopes (always included as baseline)
+                 - requested scopes (filtered to allowed_scopes)
         """
         self.ensure_one()
         allowed = set((self.allowed_scopes or '').split())
+        defaults = set((self.default_scopes or '').split())
         requested = set((requested_scope or '').split())
 
-        # Return intersection of requested and allowed
-        valid = allowed & requested
-        return ' '.join(sorted(valid)) if valid else (self.default_scopes or '')
+        # Start with defaults, add any valid requested scopes
+        # This ensures clients always get at least the default capabilities
+        valid = (defaults & allowed) | (requested & allowed)
+        return ' '.join(sorted(valid)) if valid else ''
 
     def has_grant_type(self, grant_type):
         """Check if client supports a specific grant type.

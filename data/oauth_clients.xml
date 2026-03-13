@@ -18,8 +18,8 @@ http://127.0.0.1:*/callback</field>
         <field name="grant_types">authorization_code,refresh_token,urn:ietf:params:oauth:grant-type:device_code</field>
         <field name="response_types">code</field>
         <field name="token_endpoint_auth_method">none</field>
-        <field name="allowed_scopes">mcp:discovery mcp:metadata mcp:source mcp:documentation mcp:debug mcp:operations</field>
-        <field name="default_scopes">mcp:discovery mcp:metadata mcp:operations</field>
+        <field name="allowed_scopes">mcp:discovery mcp:source mcp:documentation mcp:read mcp:debug mcp:write mcp:execute</field>
+        <field name="default_scopes">mcp:discovery mcp:read</field>
         <field name="active">True</field>
     </record>
 
@@ -33,8 +33,8 @@ http://127.0.0.1:*/callback</field>
         <field name="grant_types">authorization_code,refresh_token,urn:ietf:params:oauth:grant-type:device_code</field>
         <field name="response_types">code</field>
         <field name="token_endpoint_auth_method">none</field>
-        <field name="allowed_scopes">mcp:discovery mcp:metadata mcp:source mcp:documentation mcp:debug mcp:operations</field>
-        <field name="default_scopes">mcp:discovery mcp:metadata mcp:operations</field>
+        <field name="allowed_scopes">mcp:discovery mcp:source mcp:documentation mcp:read mcp:debug mcp:write mcp:execute</field>
+        <field name="default_scopes">mcp:discovery mcp:read mcp:write mcp:execute</field>
         <field name="active">True</field>
     </record>
 

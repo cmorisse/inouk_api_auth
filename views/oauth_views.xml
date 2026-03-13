@@ -5,18 +5,59 @@
              OAuth Client Registration Views
              ═══════════════════════════════════════════════════════════════════════════ -->
 
+        <record id="ik_oauth_client_registration__searchview" model="ir.ui.view">
+            <field name="name">ik.oauth_client_registration.searchview</field>
+            <field name="model">ik.oauth_client_registration</field>
+            <field name="arch" type="xml">
+                <search>
+                    <!-- Quick search -->
+                    <field name="client_name"/>
+                    <field name="client_id"/>
+
+                    <!-- Filters -->
+                    <filter name="filter_active" string="Active"
+                            domain="[('active', '=', True)]"/>
+                    <filter name="filter_inactive" string="Inactive"
+                            domain="[('active', '=', False)]"/>
+                    <separator/>
+                    <filter name="filter_dynamic" string="Dynamic (DCR)"
+                            domain="[('registration_type', '=', 'dynamic')]"/>
+                    <filter name="filter_manual" string="Manual"
+                            domain="[('registration_type', '=', 'manual')]"/>
+                    <separator/>
+                    <filter name="filter_sensitive" string="Sensitive Data Access"
+                            domain="[('allow_sensitive_data', '=', True)]"/>
+
+                    <!-- Group By -->
+                    <group expand="0" string="Group By">
+                        <filter name="groupby_registration_type" string="Registration Type"
+                                context="{'group_by': 'registration_type'}"/>
+                        <filter name="groupby_auth_method" string="Auth Method"
+                                context="{'group_by': 'token_endpoint_auth_method'}"/>
+                        <filter name="groupby_active" string="Active"
+                                context="{'group_by': 'active'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
         <record id="ik_oauth_client_registration__treeview" model="ir.ui.view">
             <field name="name">ik.oauth_client_registration.treeview</field>
             <field name="model">ik.oauth_client_registration</field>
             <field name="arch" type="xml">
-                <list>
+                <list decoration-muted="not active"
+                      decoration-warning="allow_sensitive_data">
                     <field name="client_name"/>
                     <field name="client_id"/>
-                    <field name="registration_type"/>
+                    <field name="registration_type"
+                           decoration-info="registration_type == 'dynamic'"
+                           decoration-success="registration_type == 'manual'"/>
                     <field name="token_endpoint_auth_method"/>
+                    <field name="allow_sensitive_data" widget="boolean_toggle"/>
+                    <field name="allowed_scopes" optional="hide"/>
                     <field name="grant_types" optional="hide"/>
-                    <field name="active"/>
-                    <field name="create_date"/>
+                    <field name="active" widget="boolean_toggle"/>
+                    <field name="create_date" optional="show"/>
                 </list>
             </field>
         </record>
@@ -32,38 +73,70 @@
                                 confirm="Generate a new client secret? The old one will be invalidated." />
                     </header>
                     <sheet>
+                        <!-- Stat buttons -->
+                        <div class="oe_button_box" name="button_box">
+                            <button class="oe_stat_button" type="object"
+                                    name="action_view_refresh_tokens" icon="fa-refresh">
+                                <field name="refresh_token_count" string="Refresh Tokens"
+                                       widget="statinfo"/>
+                            </button>
+                            <button class="oe_stat_button" type="object"
+                                    name="action_view_device_codes" icon="fa-mobile">
+                                <field name="device_code_count" string="Device Codes"
+                                       widget="statinfo"/>
+                            </button>
+                        </div>
+
+                        <!-- Title -->
                         <div class="oe_title">
                             <h1>
                                 <field name="client_name" placeholder="Client Name"/>
                             </h1>
                         </div>
+
+                        <!-- Alert if sensitive data access -->
+                        <div class="alert alert-warning" role="alert"
+                             invisible="not allow_sensitive_data">
+                            <i class="fa fa-warning"/> This client has access to sensitive data
+                            (passwords, API keys, etc.)
+                        </div>
+
                         <group>
                             <group string="Identification">
-                                <field name="client_id"/>
+                                <field name="client_id" widget="CopyClipboardChar"/>
                                 <field name="client_secret" password="True"/>
-                                <field name="client_uri"/>
-                                <field name="logo_uri"/>
+                                <field name="registration_type"/>
                                 <field name="active"/>
                             </group>
                             <group string="OAuth Configuration">
-                                <field name="registration_type"/>
                                 <field name="token_endpoint_auth_method"/>
                                 <field name="response_types"/>
                                 <field name="grant_types"/>
                                 <field name="client_secret_expires_at"/>
                             </group>
                         </group>
+
                         <group>
                             <group string="Scopes">
-                                <field name="allowed_scopes"/>
-                                <field name="default_scopes"/>
+                                <field name="allowed_scopes"
+                                       placeholder="mcp:discovery mcp:read mcp:write mcp:execute"/>
+                                <field name="default_scopes"
+                                       placeholder="mcp:discovery"/>
                             </group>
-                            <group string="Redirect URIs">
-                                <field name="redirect_uris" nolabel="1" placeholder="One URI per line&#10;http://localhost:*/callback for CLI tools"/>
+                            <group string="Security">
+                                <field name="allow_sensitive_data"/>
+                                <field name="client_uri" placeholder="https://example.com"/>
+                                <field name="logo_uri" placeholder="https://example.com/logo.png"/>
                             </group>
                         </group>
+
+                        <group string="Redirect URIs">
+                            <field name="redirect_uris" nolabel="1"
+                                   placeholder="One URI per line&#10;http://localhost:*/callback for CLI tools"/>
+                        </group>
+
                         <notebook>
-                            <page string="Authorization Codes">
+                            <page string="Authorization Codes" name="auth_codes">
                                 <field name="authorization_code_ids" readonly="1">
                                     <list>
                                         <field name="code" groups="base.group_no_one"/>
@@ -75,9 +148,9 @@
                                     </list>
                                 </field>
                             </page>
-                            <page string="Refresh Tokens">
+                            <page string="Refresh Tokens" name="refresh_tokens">
                                 <field name="refresh_token_ids" readonly="1">
-                                    <list>
+                                    <list decoration-danger="revoked">
                                         <field name="token" groups="base.group_no_one"/>
                                         <field name="user_id"/>
                                         <field name="scope"/>
@@ -88,9 +161,11 @@
                                     </list>
                                 </field>
                             </page>
-                            <page string="Device Codes">
+                            <page string="Device Codes" name="device_codes">
                                 <field name="device_code_ids" readonly="1">
-                                    <list>
+                                    <list decoration-success="state == 'authorized'"
+                                          decoration-warning="state == 'pending'"
+                                          decoration-danger="state in ('denied', 'expired')">
                                         <field name="user_code"/>
                                         <field name="state"/>
                                         <field name="user_id"/>
@@ -99,7 +174,7 @@
                                     </list>
                                 </field>
                             </page>
-                            <page string="Technical Info" groups="base.group_no_one">
+                            <page string="Technical" groups="base.group_no_one" name="technical">
                                 <group>
                                     <field name="id"/>
                                     <field name="create_date"/>
@@ -117,6 +192,8 @@
             <field name="type">ir.actions.act_window</field>
             <field name="res_model">ik.oauth_client_registration</field>
             <field name="view_mode">list,form</field>
+            <field name="search_view_id" ref="ik_oauth_client_registration__searchview"/>
+            <field name="context">{'search_default_filter_active': 1}</field>
         </record>
 
         <!-- ═══════════════════════════════════════════════════════════════════════════

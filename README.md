@@ -415,16 +415,16 @@ MCP (Model Context Protocol) scopes control access to Odoo resources:
 
 | Scope | Description |
 |-------|-------------|
-| `mcp:discovery` | List available domains and models |
-| `mcp:metadata` | Read model fields, methods, and structure |
-| `mcp:source` | Read method source code |
-| `mcp:documentation` | Read and write model documentation |
+| `mcp:discovery` | List domains, models, fields, and methods |
+| `mcp:source` | Read Python method source code |
+| `mcp:read` | Search and read record data |
 | `mcp:debug` | Analyze stacktraces and debug information |
-| `mcp:operations` | Execute operations (read, write, create, delete) |
+| `mcp:write` | Create, modify, and delete records |
+| `mcp:execute` | Execute whitelisted methods |
 
 Request scopes in the authorization request:
 ```
-scope=mcp:discovery mcp:metadata mcp:operations
+scope=mcp:discovery mcp:read mcp:write mcp:execute
 ```
 
 ### Token Refresh

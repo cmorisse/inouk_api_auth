@@ -142,7 +142,7 @@ class IkOAuthClientRegistration(models.Model):
 
     allowed_scopes = fields.Char(
         string="Allowed Scopes",
-        default='mcp:discovery mcp:source mcp:documentation mcp:read mcp:debug mcp:write mcp:execute',
+        default='mcp:discovery mcp:source mcp:read mcp:debug mcp:write mcp:execute',
         help="Space-separated list of scopes this client can request"
     )
     default_scopes = fields.Char(

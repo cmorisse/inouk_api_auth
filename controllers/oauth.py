@@ -201,7 +201,7 @@ class OAuthController(http.Controller):
             'response_types': 'code',
             'token_endpoint_auth_method': token_endpoint_auth_method,
             # Include all MCP scopes - clients can request any subset during authorization
-            'allowed_scopes': data.get('scope', 'mcp:discovery mcp:source mcp:documentation mcp:read mcp:debug mcp:write mcp:execute'),
+            'allowed_scopes': data.get('scope', 'mcp:discovery mcp:source mcp:read mcp:debug mcp:write mcp:execute'),
         })
 
         # Generate secret if auth method requires it
@@ -409,15 +409,13 @@ class OAuthController(http.Controller):
             'mcp:discovery': ('Discovery', 'List available domains and models'),
             # Level 2: Source code
             'mcp:source': ('Source Code', 'Read Python method source code'),
-            # Level 3: Documentation
-            'mcp:documentation': ('Documentation', 'Access .ai.md documentation files'),
-            # Level 4: Read data
+            # Level 3: Read data
             'mcp:read': ('Read Data', 'Search and read records from the database'),
-            # Level 5: Debug
+            # Level 4: Debug
             'mcp:debug': ('Debug', 'Analyze Python stacktraces'),
-            # Level 6: Write data
+            # Level 5: Write data
             'mcp:write': ('Write Data', 'Create, modify, and delete records'),
-            # Level 7: Execute
+            # Level 6: Execute
             'mcp:execute': ('Execute Methods', 'Call whitelisted methods on records'),
         }
 
@@ -874,11 +872,11 @@ class OAuthController(http.Controller):
         if device_auth.scope:
             scope_descriptions = {
                 'mcp:discovery': ('Discovery', 'List domains and models'),
-                'mcp:metadata': ('Metadata', 'View field definitions and methods'),
                 'mcp:source': ('Source Code', 'Read method source code'),
-                'mcp:documentation': ('Documentation', 'Access .ai.md files'),
+                'mcp:read': ('Read Data', 'Search and read records'),
                 'mcp:debug': ('Debug', 'Analyze stack traces'),
-                'mcp:operations': ('Operations', 'Write, create, execute actions'),
+                'mcp:write': ('Write Data', 'Create, modify, delete records'),
+                'mcp:execute': ('Execute', 'Call whitelisted methods'),
             }
             for s in device_auth.scope.split():
                 if s in scope_descriptions:

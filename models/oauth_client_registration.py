@@ -334,6 +334,24 @@ class IkOAuthClientRegistration(models.Model):
 
         return True
 
+    @api.model
+    def _get_all_scopes_supported(self):
+        """Aggregate scopes from all active OAuth clients.
+
+        Returns the union of allowed_scopes across all active client
+        registrations. This represents the full set of scopes the
+        authorization server can issue.
+
+        Returns:
+            list: Sorted list of unique scope strings
+        """
+        clients = self.sudo().search([('active', '=', True)])
+        scopes = set()
+        for client in clients:
+            if client.allowed_scopes:
+                scopes.update(client.allowed_scopes.split())
+        return sorted(scopes) if scopes else []
+
     def validate_scope(self, requested_scope):
         """Validate and filter requested scopes.
 

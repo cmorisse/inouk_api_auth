@@ -103,7 +103,11 @@ class OAuthController(http.Controller):
         )
 
     def _get_scopes_supported(self):
-        """Get supported scopes from system parameter.
+        """Get supported scopes for authorization server metadata.
+
+        Resolution order:
+        1. System parameter inouk_api_auth.oauth_scopes_supported (explicit override)
+        2. Dynamic aggregation from active OAuth clients
 
         Returns:
             list: List of supported scope strings
@@ -112,7 +116,11 @@ class OAuthController(http.Controller):
         scopes_str = ICP.get_param('inouk_api_auth.oauth_scopes_supported', '')
         if scopes_str:
             return [s.strip() for s in scopes_str.split(',') if s.strip()]
-        return []  # Empty by default - each protected resource defines its own
+
+        try:
+            return request.env['ik.oauth_client_registration']._get_all_scopes_supported()
+        except Exception:
+            return []
 
     # ═══════════════════════════════════════════════════════════════════════════
     # DYNAMIC CLIENT REGISTRATION (RFC 7591)

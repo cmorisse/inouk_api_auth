@@ -23,7 +23,7 @@ class InoukAPIAuthToken(models.Model):
 
     name = fields.Char(required=True)
     description = fields.Char()
-    user_id = fields.Many2one('res.users', required=True)
+    user_id = fields.Many2one('res.users', required=True, ondelete='CASCADE')
     token_type = fields.Selection(
         selection=TOKEN_TYPES_LIST,
         string="Type",

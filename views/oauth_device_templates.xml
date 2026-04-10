@@ -201,7 +201,7 @@
                 </p>
 
                 <div class="d-grid">
-                    <a href="/oauth/device" class="btn btn-outline-primary">
+                    <a href="/oauth/device" class="btn btn-outline-primary" role="button">
                         <i class="fa fa-redo me-2"/>
                         Enter Code Manually
                     </a>

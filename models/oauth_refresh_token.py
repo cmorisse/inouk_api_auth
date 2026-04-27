@@ -188,6 +188,121 @@ class IkOAuthRefreshToken(models.Model):
             self.access_token_id.write({'is_compromised': True})
         return True
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PUBLIC HELPER — TOKEN PAIR ISSUANCE
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Pure-ORM classmethod extracted from OAuthController._issue_tokens so that
+    # downstream addons (e.g. inouk_mcp) can issue token pairs with their own
+    # extra fields (e.g. mcp_instance_id) without depending on the HTTP layer.
+
+    @api.model
+    def issue_token_pair(self, client_registration, user, scope, resource,
+                         old_refresh_token=None,
+                         extra_access_vals=None, extra_refresh_vals=None):
+        """Issue an access_token + refresh_token pair (RFC 6749).
+
+        Single source of truth for OAuth 2.1 token issuance. Replaces the
+        historical OAuthController._issue_tokens. The HTTP controller wraps
+        this method's return value in a Response.
+
+        Args:
+            client_registration: ik.oauth_client_registration record.
+            user: res.users record on whose behalf the token is issued.
+            scope: str. Granted scope (space-separated).
+            resource: str | None. RFC 8707 resource indicator.
+            old_refresh_token: ik.oauth_refresh_token record | None. When
+                refreshing, the existing refresh_token (drives rotation policy).
+            extra_access_vals: dict | None. Extra fields merged into
+                ``ik.api_auth_token.create()``. Used by callers that need to
+                attach an audience binding (e.g. inouk_mcp passes
+                ``{'mcp_instance_id': instance.id}``). Must NOT collide with
+                core fields managed below.
+            extra_refresh_vals: dict | None. Extra fields merged into
+                ``ik.oauth_refresh_token.create()``. Same rules.
+
+        Returns:
+            dict: RFC 6749 token response payload, ready for JSON serialization::
+
+                {
+                    'access_token': str,
+                    'token_type': 'Bearer',
+                    'expires_in': int,
+                    'refresh_token': str,
+                    'scope': str,
+                }
+
+        Side effects (single transaction):
+            - Creates a new ik.api_auth_token (header type, OAuth 2.1).
+            - Creates or rotates a ik.oauth_refresh_token.
+            - Revokes ``old_refresh_token`` if rotation is enabled.
+        """
+        Token = self.env['ik.api_auth_token'].sudo()
+        RefreshToken = self.env['ik.oauth_refresh_token'].sudo()
+        ICP = self.env['ir.config_parameter'].sudo()
+
+        token_lifetime = int(ICP.get_param(
+            'inouk_api_auth.oauth_token_lifetime', '3600'))
+
+        # Build access token vals (core fields + caller extras)
+        access_vals = {
+            'name': f"OAuth2.1 token for {client_registration.client_name}",
+            'user_id': user.id,
+            'token_type': 'header',
+            'header_name': 'Authorization',
+            'header_prefix': 'Bearer ',
+            'support_url_param': True,
+            'url_param_name': 'access_token',
+            'expiration_ts': fields.Datetime.add(
+                fields.Datetime.now(), seconds=token_lifetime),
+            'oauth21_client_registration_id': client_registration.id,
+            'oauth21_scope': scope,
+            'oauth21_resource': resource,
+        }
+        if extra_access_vals:
+            access_vals.update(extra_access_vals)
+
+        access_token = Token.create(access_vals)
+        # Generate the static token value and save it
+        access_token.static_token = access_token.generate_credentials_header()
+
+        # Handle refresh token (rotation policy)
+        rotate_refresh = ICP.get_param(
+            'inouk_api_auth.oauth_rotate_refresh_tokens', 'true'
+        ).lower() == 'true'
+
+        if old_refresh_token and not rotate_refresh:
+            # Reuse existing refresh token
+            old_refresh_token.write({'access_token_id': access_token.id})
+            old_refresh_token.use()
+            refresh_token_value = old_refresh_token.token
+        else:
+            refresh_vals = {
+                'client_registration_id': client_registration.id,
+                'user_id': user.id,
+                'access_token_id': access_token.id,
+                'scope': scope,
+                'resource': resource,
+            }
+            if extra_refresh_vals:
+                refresh_vals.update(extra_refresh_vals)
+            new_refresh = RefreshToken.create(refresh_vals)
+            refresh_token_value = new_refresh.token
+
+            # Link to access token
+            access_token.write({'oauth21_refresh_token_id': new_refresh.id})
+
+            # Revoke old refresh token if rotating
+            if old_refresh_token and rotate_refresh:
+                old_refresh_token.revoke()
+
+        return {
+            'access_token': access_token.static_token,
+            'token_type': 'Bearer',
+            'expires_in': token_lifetime,
+            'refresh_token': refresh_token_value,
+            'scope': scope,
+        }
+
     @api.model
     def _cron_cleanup_expired(self):
         """Cleanup expired and revoked refresh tokens.

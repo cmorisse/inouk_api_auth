@@ -426,3 +426,212 @@ class TestOAuth21TokenFields(TransactionCase):
             'oauth21_client_registration_id': client.id,
         })
         self.assertTrue(token2.is_oauth21_token)
+
+
+@tagged('post_install', '-at_install')
+class TestRedirectUriPatternMatch(TransactionCase):
+    """Tests for match_redirect_uri_pattern classmethod (extracted from controller)."""
+
+    def setUp(self):
+        super().setUp()
+        self.ClientReg = self.env['ik.oauth_client_registration']
+
+    def test_exact_match(self):
+        """Exact URI match against patterns list."""
+        patterns = ['https://claude.ai/api/mcp/auth_callback']
+        self.assertTrue(self.ClientReg.match_redirect_uri_pattern(
+            'https://claude.ai/api/mcp/auth_callback', patterns))
+        self.assertFalse(self.ClientReg.match_redirect_uri_pattern(
+            'https://claude.ai/api/mcp/other', patterns))
+
+    def test_fnmatch_wildcard(self):
+        """fnmatch-style wildcards (e.g., subdomains, path globs)."""
+        patterns = ['https://chatgpt.com/connector/oauth/*']
+        self.assertTrue(self.ClientReg.match_redirect_uri_pattern(
+            'https://chatgpt.com/connector/oauth/U4Rcy6m-N9xE', patterns))
+        self.assertFalse(self.ClientReg.match_redirect_uri_pattern(
+            'https://chatgpt.com/other', patterns))
+
+    def test_localhost_any_port(self):
+        """Localhost with :* pattern allows any port (CLI tools)."""
+        patterns = ['http://localhost:*/callback']
+        self.assertTrue(self.ClientReg.match_redirect_uri_pattern(
+            'http://localhost:8080/callback', patterns))
+        self.assertTrue(self.ClientReg.match_redirect_uri_pattern(
+            'http://localhost:65000/callback', patterns))
+        # Different path → fail
+        self.assertFalse(self.ClientReg.match_redirect_uri_pattern(
+            'http://localhost:8080/other', patterns))
+
+    def test_localhost_rejects_https(self):
+        """Localhost MUST use http:// (not https://)."""
+        patterns = ['http://localhost:*/callback']
+        self.assertFalse(self.ClientReg.match_redirect_uri_pattern(
+            'https://localhost:8080/callback', patterns))
+
+    def test_127_0_0_1_alias(self):
+        """127.0.0.1 is treated like localhost."""
+        patterns = ['http://127.0.0.1:*/callback']
+        self.assertTrue(self.ClientReg.match_redirect_uri_pattern(
+            'http://127.0.0.1:8080/callback', patterns))
+
+    def test_no_match_returns_false(self):
+        """Unmatched URI returns False (not None, not raise)."""
+        patterns = ['https://claude.ai/api/mcp/auth_callback']
+        self.assertFalse(self.ClientReg.match_redirect_uri_pattern(
+            'https://attacker.example/callback', patterns))
+
+    def test_empty_patterns_list(self):
+        """Empty patterns list = deny all."""
+        self.assertFalse(self.ClientReg.match_redirect_uri_pattern(
+            'https://claude.ai/api/mcp/auth_callback', []))
+
+
+@tagged('post_install', '-at_install')
+class TestGlobalRedirectPatterns(TransactionCase):
+    """Tests for get_global_redirect_patterns classmethod."""
+
+    def test_default_when_unset(self):
+        """Default patterns returned when ICP is unset."""
+        ICP = self.env['ir.config_parameter'].sudo()
+        # Ensure ICP is unset
+        existing = ICP.search([('key', '=', 'inouk_api_auth.oauth_allowed_redirect_patterns')])
+        existing.unlink()
+        patterns = self.env['ik.oauth_client_registration'].get_global_redirect_patterns()
+        # Hardcoded fallback contains Claude.ai + localhost
+        self.assertIn('https://claude.ai/api/mcp/auth_callback', patterns)
+        self.assertIn('http://localhost:*/callback', patterns)
+
+    def test_icp_value_overrides_default(self):
+        """ICP value, when set, takes precedence."""
+        ICP = self.env['ir.config_parameter'].sudo()
+        ICP.set_param(
+            'inouk_api_auth.oauth_allowed_redirect_patterns',
+            'https://example.com/cb\nhttps://other.test/cb',
+        )
+        patterns = self.env['ik.oauth_client_registration'].get_global_redirect_patterns()
+        self.assertEqual(patterns, ['https://example.com/cb', 'https://other.test/cb'])
+
+    def test_blank_lines_stripped(self):
+        """Blank lines and whitespace stripped from ICP value."""
+        ICP = self.env['ir.config_parameter'].sudo()
+        ICP.set_param(
+            'inouk_api_auth.oauth_allowed_redirect_patterns',
+            '  https://a.test/cb  \n\n  https://b.test/cb\n',
+        )
+        patterns = self.env['ik.oauth_client_registration'].get_global_redirect_patterns()
+        self.assertEqual(patterns, ['https://a.test/cb', 'https://b.test/cb'])
+
+
+@tagged('post_install', '-at_install')
+class TestIssueTokenPair(TransactionCase):
+    """Tests for issue_token_pair classmethod (extracted from controller)."""
+
+    def setUp(self):
+        super().setUp()
+        self.RefreshToken = self.env['ik.oauth_refresh_token']
+        self.client = self.env['ik.oauth_client_registration'].create({
+            'client_name': 'Test Client',
+        })
+        self.user = self.env.ref('base.user_admin')
+
+    def test_returns_payload_dict(self):
+        """Returns RFC 6749 dict (not Response, not record)."""
+        payload = self.RefreshToken.issue_token_pair(
+            self.client, self.user, 'mcp:discovery mcp:read', None,
+        )
+        self.assertIsInstance(payload, dict)
+        self.assertIn('access_token', payload)
+        self.assertIn('refresh_token', payload)
+        self.assertEqual(payload['token_type'], 'Bearer')
+        self.assertEqual(payload['scope'], 'mcp:discovery mcp:read')
+        self.assertGreater(payload['expires_in'], 0)
+
+    def test_creates_access_and_refresh_records(self):
+        """Persists ik.api_auth_token AND ik.oauth_refresh_token records."""
+        payload = self.RefreshToken.issue_token_pair(
+            self.client, self.user, 'mcp:read', 'https://server/mcp/x/y',
+        )
+        access = self.env['ik.api_auth_token'].search([
+            ('static_token', '=', payload['access_token']),
+        ])
+        self.assertEqual(len(access), 1)
+        self.assertEqual(access.oauth21_client_registration_id, self.client)
+        self.assertEqual(access.oauth21_scope, 'mcp:read')
+        self.assertEqual(access.oauth21_resource, 'https://server/mcp/x/y')
+
+        refresh = self.RefreshToken.search([('token', '=', payload['refresh_token'])])
+        self.assertEqual(len(refresh), 1)
+        self.assertEqual(refresh.client_registration_id, self.client)
+        self.assertEqual(refresh.access_token_id, access)
+        self.assertEqual(access.oauth21_refresh_token_id, refresh)
+
+    def test_extra_access_vals_injected(self):
+        """extra_access_vals merged into Token.create()."""
+        # Use an existing field to avoid coupling test to a future model.
+        payload = self.RefreshToken.issue_token_pair(
+            self.client, self.user, 'mcp:read', None,
+            extra_access_vals={'description': 'integration test marker'},
+        )
+        access = self.env['ik.api_auth_token'].search([
+            ('static_token', '=', payload['access_token']),
+        ])
+        self.assertEqual(access.description, 'integration test marker')
+
+    def test_extra_refresh_vals_injected(self):
+        """extra_refresh_vals merged into RefreshToken.create()."""
+        # ik.oauth_refresh_token has no Char field by default we can repurpose
+        # safely; use 'scope' override as a marker (its value is also driven by
+        # the positional arg, so we rely on the fact that extra_refresh_vals
+        # wins via dict.update).
+        payload = self.RefreshToken.issue_token_pair(
+            self.client, self.user, 'mcp:read', None,
+            extra_refresh_vals={'scope': 'mcp:read mcp:write'},
+        )
+        refresh = self.RefreshToken.search([('token', '=', payload['refresh_token'])])
+        # extra_refresh_vals wins over the positional `scope` arg by design
+        # (dict.update applies after the core vals are set).
+        self.assertEqual(refresh.scope, 'mcp:read mcp:write')
+
+    def test_rotation_revokes_old_refresh(self):
+        """When rotation enabled, old refresh token is revoked on issuance."""
+        ICP = self.env['ir.config_parameter'].sudo()
+        ICP.set_param('inouk_api_auth.oauth_rotate_refresh_tokens', 'true')
+
+        # Issue first pair, then refresh
+        payload1 = self.RefreshToken.issue_token_pair(
+            self.client, self.user, 'mcp:read', None,
+        )
+        old_refresh = self.RefreshToken.search([('token', '=', payload1['refresh_token'])])
+        self.assertFalse(old_refresh.revoked)
+
+        payload2 = self.RefreshToken.issue_token_pair(
+            self.client, self.user, 'mcp:read', None,
+            old_refresh_token=old_refresh,
+        )
+        # Old refresh now revoked, new one issued
+        self.assertTrue(old_refresh.revoked)
+        self.assertNotEqual(payload1['refresh_token'], payload2['refresh_token'])
+
+    def test_no_rotation_reuses_refresh(self):
+        """When rotation disabled, old refresh token is reused."""
+        ICP = self.env['ir.config_parameter'].sudo()
+        ICP.set_param('inouk_api_auth.oauth_rotate_refresh_tokens', 'false')
+
+        payload1 = self.RefreshToken.issue_token_pair(
+            self.client, self.user, 'mcp:read', None,
+        )
+        old_refresh = self.RefreshToken.search([('token', '=', payload1['refresh_token'])])
+        old_use_count = old_refresh.use_count
+
+        payload2 = self.RefreshToken.issue_token_pair(
+            self.client, self.user, 'mcp:read', None,
+            old_refresh_token=old_refresh,
+        )
+        # Same refresh_token, use_count incremented, not revoked
+        self.assertEqual(payload1['refresh_token'], payload2['refresh_token'])
+        self.assertFalse(old_refresh.revoked)
+        self.assertEqual(old_refresh.use_count, old_use_count + 1)
+
+        # Reset ICP for other tests
+        ICP.set_param('inouk_api_auth.oauth_rotate_refresh_tokens', 'true')

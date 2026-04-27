@@ -2,40 +2,19 @@
 <odoo>
 
     <!-- ═══════════════════════════════════════════════════════════════════════════
-         Pre-registered OAuth 2.1 Clients
+         The mpy-cli and mgx-cli OAuth clients used to live here. As of P2.c.2
+         they moved to the addon that owns the corresponding MCP provider:
 
-         These clients are pre-configured for CLI tools that use the Device Code flow.
-         Users don't need to register them - they're ready to use.
+           - mpy-cli   → inouk_mcp_muppy/data/oauth_clients__mpy.xml
+           - mgx-cli   → muppy_manganese/data/oauth_clients__mgx.xml
+
+         Each new file uses delete_externalid + upsert_externalid to transfer
+         ownership of the existing ik.oauth_client_registration row from
+         inouk_api_auth to the new module without dropping the underlying record
+         (so previously issued tokens keep working).
+
+         inouk_api_auth stays generic — it ships the OAuth machinery, not the
+         CLI clients.
          ═══════════════════════════════════════════════════════════════════════════ -->
-
-    <!-- Muppy CLI (mpy) -->
-    <record id="oauth_client_mpy_cli" model="ik.oauth_client_registration">
-        <field name="client_id">mpy-cli</field>
-        <field name="client_name">Muppy CLI (mpy)</field>
-        <field name="registration_type">manual</field>
-        <field name="redirect_uris">http://localhost:*/callback
-http://127.0.0.1:*/callback</field>
-        <field name="grant_types">authorization_code,refresh_token,urn:ietf:params:oauth:grant-type:device_code</field>
-        <field name="response_types">code</field>
-        <field name="token_endpoint_auth_method">none</field>
-        <field name="allowed_scopes">mcp:discovery mcp:source mcp:read mcp:debug mcp:write mcp:execute</field>
-        <field name="default_scopes">mcp:discovery mcp:read</field>
-        <field name="active">True</field>
-    </record>
-
-    <!-- MGX CLI (mgx) -->
-    <record id="oauth_client_mgx_cli" model="ik.oauth_client_registration">
-        <field name="client_id">mgx-cli</field>
-        <field name="client_name">MGX CLI (mgx)</field>
-        <field name="registration_type">manual</field>
-        <field name="redirect_uris">http://localhost:*/callback
-http://127.0.0.1:*/callback</field>
-        <field name="grant_types">authorization_code,refresh_token,urn:ietf:params:oauth:grant-type:device_code</field>
-        <field name="response_types">code</field>
-        <field name="token_endpoint_auth_method">none</field>
-        <field name="allowed_scopes">mcp:discovery mcp:source mcp:read mcp:debug mcp:write mcp:execute</field>
-        <field name="default_scopes">mcp:discovery mcp:read mcp:write mcp:execute</field>
-        <field name="active">True</field>
-    </record>
 
 </odoo>

@@ -352,6 +352,84 @@ class IkOAuthClientRegistration(models.Model):
                 scopes.update(client.allowed_scopes.split())
         return sorted(scopes) if scopes else []
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # PUBLIC HELPERS — REDIRECT URI ALLOWLIST (RFC 7591 DCR)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # These are pure-logic classmethods extracted from OAuthController so that
+    # downstream addons (e.g., inouk_mcp) can reuse the same redirect_uri
+    # validation rules without depending on the HTTP controller.
+
+    @api.model
+    def match_redirect_uri_pattern(self, uri, patterns):
+        """Check if URI matches any allowed pattern from the given list.
+
+        Pure-logic classmethod (no DB access, no Werkzeug). Same rules as
+        the historical OAuthController._validate_redirect_uri_pattern:
+
+        - Localhost (http://localhost or http://127.0.0.1):
+            - HTTPS rejected.
+            - Any port allowed if a pattern with ':*' on the same path exists.
+        - Non-localhost:
+            - Exact string match against the patterns list.
+            - fnmatch wildcard match (e.g. ``https://*.example.com/cb``).
+        - Custom schemes (e.g. mobile apps) fall through to fnmatch.
+
+        Args:
+            uri: str. Candidate redirect URI.
+            patterns: list[str]. Allowlist patterns (already split + stripped).
+
+        Returns:
+            bool: True if uri matches at least one pattern.
+        """
+        parsed = urlparse(uri)
+
+        # Special handling for localhost (CLI applications)
+        if parsed.hostname in ('localhost', '127.0.0.1'):
+            if parsed.scheme != 'http':
+                return False
+            for pattern in patterns:
+                if 'localhost:*' in pattern or '127.0.0.1:*' in pattern:
+                    pattern_parsed = urlparse(pattern.replace(':*', ':9999'))
+                    if parsed.path == pattern_parsed.path:
+                        return True
+            return False
+
+        # Exact match
+        if uri in patterns:
+            return True
+
+        # fnmatch-style pattern matching
+        for pattern in patterns:
+            if fnmatch.fnmatch(uri, pattern):
+                return True
+
+        return False
+
+    @api.model
+    def get_global_redirect_patterns(self):
+        """Return the server-wide allowlist of redirect URI patterns.
+
+        Reads ``ir.config_parameter`` ``inouk_api_auth.oauth_allowed_redirect_patterns``.
+        Falls back to a hardcoded default (Claude.ai callbacks + localhost) if
+        the parameter is unset or empty.
+
+        Used by the global ``/oauth/register`` endpoint (non-MCP). Per-resource
+        consumers (e.g. inouk_mcp per-instance DCR) must NOT call this method;
+        they pass their own pattern list to ``match_redirect_uri_pattern``.
+
+        Returns:
+            list[str]: fnmatch patterns, one per non-empty line.
+        """
+        patterns = self.env['ir.config_parameter'].sudo().get_param(
+            'inouk_api_auth.oauth_allowed_redirect_patterns',
+            # Default: Claude.ai callbacks + localhost for CLI
+            'https://claude.ai/api/mcp/auth_callback\n'
+            'https://claude.com/api/mcp/auth_callback\n'
+            'http://localhost:*/callback\n'
+            'http://127.0.0.1:*/callback'
+        )
+        return [p.strip() for p in patterns.split('\n') if p.strip()]
+
     def validate_scope(self, requested_scope):
         """Validate and filter requested scopes.
 

@@ -229,6 +229,8 @@ curl -X POST https://your-server/oauth/token \
 
 For CLI applications (mpy/mgx) in remote environments (SSH, containers) where the browser is not on the same machine.
 
+> **Tutorial:** for a step-by-step walkthrough that explains the **why** behind each step (when to choose Device Code vs other flows, what each token does, why refresh tokens rotate), see [docs/ikaa_cli_authentication_tutorial.md](docs/ikaa_cli_authentication_tutorial.md). The reference below is endpoint-by-endpoint.
+
 ```
 ┌─────────────┐              ┌─────────────┐              ┌─────────────────┐
 │   CLI mpy   │              │  Browser    │              │  Muppy Server   │

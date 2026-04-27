@@ -13,11 +13,10 @@ Flows supported:
 See auth.py header for detailed documentation on route type selection.
 """
 
-import fnmatch
 import json
 import logging
 import secrets
-from urllib.parse import urlparse, urlencode
+from urllib.parse import urlencode
 
 from odoo import http, fields
 from odoo.http import request, Response
@@ -241,51 +240,22 @@ class OAuthController(http.Controller):
         )
 
     def _get_allowed_redirect_patterns(self):
-        """Get allowed redirect URI patterns from config."""
-        patterns = request.env['ir.config_parameter'].sudo().get_param(
-            'inouk_api_auth.oauth_allowed_redirect_patterns',
-            # Default: Claude.ai callbacks + localhost for CLI
-            'https://claude.ai/api/mcp/auth_callback\n'
-            'https://claude.com/api/mcp/auth_callback\n'
-            'http://localhost:*/callback\n'
-            'http://127.0.0.1:*/callback'
-        )
-        return [p.strip() for p in patterns.split('\n') if p.strip()]
+        """Get allowed redirect URI patterns from config.
+
+        Thin wrapper over ``ik.oauth_client_registration.get_global_redirect_patterns()``.
+        Kept for HTTP controller backward compatibility — model classmethod is the
+        canonical implementation.
+        """
+        return request.env['ik.oauth_client_registration'].get_global_redirect_patterns()
 
     def _validate_redirect_uri_pattern(self, uri, patterns):
         """Check if URI matches any allowed pattern.
 
-        Supports:
-        - Exact match: https://example.com/callback
-        - Wildcard subdomain: https://*.example.com/callback
-        - Localhost with any port: http://localhost:*/callback (for CLI)
-        - Custom schemes: muppy://callback (for mobile apps)
+        Thin wrapper over ``ik.oauth_client_registration.match_redirect_uri_pattern()``.
+        Kept for HTTP controller backward compatibility — model classmethod is the
+        canonical implementation.
         """
-        parsed = urlparse(uri)
-
-        # Special handling for localhost (CLI applications)
-        if parsed.hostname in ('localhost', '127.0.0.1'):
-            # Must be http for localhost (not https)
-            if parsed.scheme != 'http':
-                return False
-            # Check path matches a localhost pattern
-            for pattern in patterns:
-                if 'localhost:*' in pattern or '127.0.0.1:*' in pattern:
-                    pattern_parsed = urlparse(pattern.replace(':*', ':9999'))
-                    if parsed.path == pattern_parsed.path:
-                        return True
-            return False
-
-        # Exact match
-        if uri in patterns:
-            return True
-
-        # fnmatch-style pattern matching
-        for pattern in patterns:
-            if fnmatch.fnmatch(uri, pattern):
-                return True
-
-        return False
+        return request.env['ik.oauth_client_registration'].match_redirect_uri_pattern(uri, patterns)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # AUTHORIZATION ENDPOINT (OAuth 2.1)
@@ -682,79 +652,22 @@ class OAuthController(http.Controller):
     def _issue_tokens(self, client_registration, user, scope, resource, old_refresh_token=None):
         """Issue access and refresh tokens.
 
-        Args:
-            client_registration: ik.oauth_client_registration record
-            user: res.users record
-            scope: Space-separated scope string
-            resource: RFC 8707 resource indicator
-            old_refresh_token: Existing refresh token (for rotation)
+        Thin wrapper over ``ik.oauth_refresh_token.issue_token_pair()``. Wraps
+        the dict returned by the classmethod in an HTTP Response. The classmethod
+        is the canonical implementation — addons that need to inject extra fields
+        (e.g. inouk_mcp adding ``mcp_instance_id``) call it directly with
+        ``extra_access_vals`` / ``extra_refresh_vals``.
 
         Returns:
-            Response: Token response
+            Response: RFC 6749 token response.
         """
-        Token = request.env['ik.api_auth_token'].sudo()
-        RefreshToken = request.env['ik.oauth_refresh_token'].sudo()
-        ICP = request.env['ir.config_parameter'].sudo()
-
-        token_lifetime = int(ICP.get_param('inouk_api_auth.oauth_token_lifetime', '3600'))
-
-        # Create access token
-        access_token = Token.create({
-            'name': f"OAuth2.1 token for {client_registration.client_name}",
-            'user_id': user.id,
-            'token_type': 'header',
-            'header_name': 'Authorization',
-            'header_prefix': 'Bearer ',
-            'support_url_param': True,
-            'url_param_name': 'access_token',
-            'expiration_ts': fields.Datetime.add(fields.Datetime.now(), seconds=token_lifetime),
-            'oauth21_client_registration_id': client_registration.id,
-            'oauth21_scope': scope,
-            'oauth21_resource': resource,
-        })
-        # Generate the static token value and save it
-        access_token.static_token = access_token.generate_credentials_header()
-
-        # Handle refresh token
-        rotate_refresh = ICP.get_param(
-            'inouk_api_auth.oauth_rotate_refresh_tokens', 'true'
-        ).lower() == 'true'
-
-        if old_refresh_token and not rotate_refresh:
-            # Reuse existing refresh token
-            old_refresh_token.write({
-                'access_token_id': access_token.id,
-            })
-            old_refresh_token.use()
-            refresh_token_value = old_refresh_token.token
-        else:
-            # Create new refresh token
-            new_refresh = RefreshToken.create({
-                'client_registration_id': client_registration.id,
-                'user_id': user.id,
-                'access_token_id': access_token.id,
-                'scope': scope,
-                'resource': resource,
-            })
-            refresh_token_value = new_refresh.token
-
-            # Link to access token
-            access_token.write({'oauth21_refresh_token_id': new_refresh.id})
-
-            # Revoke old refresh token if rotating
-            if old_refresh_token and rotate_refresh:
-                old_refresh_token.revoke()
-
+        token_payload = request.env['ik.oauth_refresh_token'].issue_token_pair(
+            client_registration, user, scope, resource,
+            old_refresh_token=old_refresh_token,
+        )
         _logger.info("OAuth: Issued OAuth 2.1 token for user %s, client %s",
                     user.login, client_registration.client_name)
-
-        return self._token_response(
-            access_token=access_token.static_token,
-            token_type='Bearer',
-            expires_in=token_lifetime,
-            refresh_token=refresh_token_value,
-            scope=scope,
-        )
+        return self._token_response(**token_payload)
 
     def _token_response(self, access_token, token_type, expires_in,
                         refresh_token=None, scope=None):

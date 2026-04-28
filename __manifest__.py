@@ -33,7 +33,7 @@ Features:
     # Check https://github.com/odoo/odoo/blob/master/openerp/addons/base/module/module_data.xml
     # for the full list
     'category': 'Inouk',
-    'version': '2.0.0',
+    'version': '2.0.1',
     "license": "LGPL-3",
     # any module necessary for this one to work correctly
     'depends': [

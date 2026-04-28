@@ -207,8 +207,12 @@ class OAuthController(http.Controller):
             'grant_types': grant_types,
             'response_types': 'code',
             'token_endpoint_auth_method': token_endpoint_auth_method,
-            # Include all MCP scopes - clients can request any subset during authorization
-            'allowed_scopes': data.get('scope', 'mcp:discovery mcp:source mcp:read mcp:debug mcp:write mcp:execute'),
+            # Decoupled from MCP-specific vocabulary. The global DCR endpoint
+            # only knows what the requesting client declares; consuming addons
+            # (e.g. inouk_mcp) provide their own per-resource DCR endpoint
+            # that intersects the requested scope against the resource's
+            # vocabulary.
+            'allowed_scopes': data.get('scope', ''),
         })
 
         # Generate secret if auth method requires it
@@ -380,20 +384,16 @@ class OAuthController(http.Controller):
         # DISPLAY CONSENT SCREEN
         # ═══════════════════════════════════════════════════════════════════════
 
-        # Parse scopes for display
+        # Parse scopes for display. Hardcoded fallback labels — used only by
+        # the global /oauth/authorize controller for non-MCP clients. The MCP
+        # per-instance controller (inouk_mcp.mcp_oauth) reads labels from the
+        # provider's scopes_yaml as the single source of truth.
         scope_list = validated_scope.split() if validated_scope else []
         scope_descriptions = {
-            # Level 1: Discovery
             'mcp:discovery': ('Discovery', 'List available domains and models'),
-            # Level 2: Source code
             'mcp:source': ('Source Code', 'Read Python method source code'),
-            # Level 3: Read data
             'mcp:read': ('Read Data', 'Search and read records from the database'),
-            # Level 4: Debug
-            'mcp:debug': ('Debug', 'Analyze Python stacktraces'),
-            # Level 5: Write data
             'mcp:write': ('Write Data', 'Create, modify, and delete records'),
-            # Level 6: Execute
             'mcp:execute': ('Execute Methods', 'Call whitelisted methods on records'),
         }
 
@@ -788,14 +788,18 @@ class OAuthController(http.Controller):
                 'error': 'Device authorization has expired. Please try again from the CLI.',
             })
 
-        # Parse scopes for display
+        # Parse scopes for display. Hardcoded fallback labels — used by the
+        # global /oauth/device controller for non-MCP clients. MCP CLI clients
+        # (mgx, mpy) hit this same template after device init, but their scope
+        # vocabulary is constrained by the provider's scopes_yaml at issuance
+        # time, so this dict only labels what the user already consented to
+        # via the MCP-aware code path.
         scopes = []
         if device_auth.scope:
             scope_descriptions = {
                 'mcp:discovery': ('Discovery', 'List domains and models'),
                 'mcp:source': ('Source Code', 'Read method source code'),
                 'mcp:read': ('Read Data', 'Search and read records'),
-                'mcp:debug': ('Debug', 'Analyze stack traces'),
                 'mcp:write': ('Write Data', 'Create, modify, delete records'),
                 'mcp:execute': ('Execute', 'Call whitelisted methods'),
             }

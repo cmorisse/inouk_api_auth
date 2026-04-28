@@ -420,7 +420,6 @@ MCP (Model Context Protocol) scopes control access to Odoo resources:
 | `mcp:discovery` | List domains, models, fields, and methods |
 | `mcp:source` | Read Python method source code |
 | `mcp:read` | Search and read record data |
-| `mcp:debug` | Analyze stacktraces and debug information |
 | `mcp:write` | Create, modify, and delete records |
 | `mcp:execute` | Execute whitelisted methods |
 

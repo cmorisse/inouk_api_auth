@@ -69,25 +69,39 @@ class TestOAuthClientRegistration(TransactionCase):
             client.validate_redirect_uri('https://example.com/other')
 
     def test_scope_validation(self):
-        """Test scope validation and filtering."""
+        """Test scope validation and filtering.
+
+        validate_scope behavior follows RFC 6749 §3.3:
+        - Explicit request → return intersection (requested ∩ allowed)
+        - Empty / None request → fall back to defaults (defaults ∩ allowed)
+        Defaults are NEVER force-injected when the request is non-empty —
+        that was the pre-rework bug (#5).
+        """
         client = self.env['ik.oauth_client_registration'].create({
             'client_name': 'Test Client',
             'allowed_scopes': 'mcp:discovery mcp:metadata',
             'default_scopes': 'mcp:discovery',
         })
 
-        # Request allowed scope
+        # Request allowed scope — returned as-is.
         result = client.validate_scope('mcp:discovery')
         self.assertEqual(result, 'mcp:discovery')
 
-        # Request multiple allowed scopes
+        # Request multiple allowed scopes — both kept.
         result = client.validate_scope('mcp:discovery mcp:metadata')
         self.assertIn('mcp:discovery', result)
         self.assertIn('mcp:metadata', result)
 
-        # Request disallowed scope - should be filtered out
+        # Explicit request with NO overlap with allowed — empty result.
+        # Pre-rework this returned default_scopes (forced injection); now we
+        # respect the user/client's explicit narrowing.
         result = client.validate_scope('mcp:operations')
-        # Returns default_scopes when no valid scopes
+        self.assertEqual(result, '')
+
+        # Empty/None request — fallback to defaults (RFC 6749 §3.3 behavior).
+        result = client.validate_scope('')
+        self.assertEqual(result, 'mcp:discovery')
+        result = client.validate_scope(None)
         self.assertEqual(result, 'mcp:discovery')
 
     def test_has_grant_type(self):

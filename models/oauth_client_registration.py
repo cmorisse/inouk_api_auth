@@ -142,13 +142,16 @@ class IkOAuthClientRegistration(models.Model):
 
     allowed_scopes = fields.Char(
         string="Allowed Scopes",
-        default='mcp:discovery mcp:source mcp:read mcp:debug mcp:write mcp:execute',
-        help="Space-separated list of scopes this client can request"
+        default='',
+        help="Space-separated list of scopes this client can request. "
+             "Decoupled from MCP-specific vocabulary: it's up to the consuming "
+             "addon (inouk_mcp) to scope it via its own DCR endpoint."
     )
     default_scopes = fields.Char(
         string="Default Scopes",
-        default='mcp:discovery mcp:read',
-        help="Scopes granted if none are requested"
+        default='',
+        help="Scopes granted if none are requested. Empty by default — "
+             "consuming addons set their own default vocabulary."
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -431,24 +434,33 @@ class IkOAuthClientRegistration(models.Model):
         return [p.strip() for p in patterns.split('\n') if p.strip()]
 
     def validate_scope(self, requested_scope):
-        """Validate and filter requested scopes.
+        """Filter the requested scope against this client's allowed_scopes.
+
+        Behavior aligns with RFC 6749 §3.3: when the request includes a scope
+        parameter, the server returns the intersection (requested ∩ allowed).
+        When the request omits scope, the server falls back to the client's
+        default_scopes (defaults ∩ allowed).
+
+        Previous behavior unioned defaults and requested unconditionally,
+        which forced default scopes onto every grant — e.g. a user who
+        explicitly requested 'mcp:read' on a client whose defaults included
+        'mcp:write mcp:execute' got all three. That violated user intent and
+        the RFC.
 
         Args:
-            requested_scope: Space-separated scope string
+            requested_scope: Space-separated scope string (or None/empty).
 
         Returns:
-            str: Validated scope string. Combines:
-                 - default_scopes (always included as baseline)
-                 - requested scopes (filtered to allowed_scopes)
+            str: Space-separated validated scope string, or '' if no overlap.
         """
         self.ensure_one()
         allowed = set((self.allowed_scopes or '').split())
-        defaults = set((self.default_scopes or '').split())
-        requested = set((requested_scope or '').split())
-
-        # Start with defaults, add any valid requested scopes
-        # This ensures clients always get at least the default capabilities
-        valid = (defaults & allowed) | (requested & allowed)
+        if requested_scope:
+            requested = set(requested_scope.split())
+            valid = requested & allowed
+        else:
+            defaults = set((self.default_scopes or '').split())
+            valid = defaults & allowed
         return ' '.join(sorted(valid)) if valid else ''
 
     def has_grant_type(self, grant_type):

@@ -63,24 +63,32 @@
                     </small>
                 </div>
 
-                <!-- Decision form -->
-                <form method="POST" action="/oauth/device/authorize">
-                    <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
-                    <input type="hidden" name="device_code" t-att-value="device_auth.device_code"/>
-
-                    <div class="d-grid gap-2">
-                        <button type="submit" name="action" value="authorize"
-                                class="btn btn-primary btn-lg">
+                <!-- Decision forms — two separate forms so each carries its
+                     own hidden action field. A single form with two submit
+                     buttons differing only by name=value did not serialize
+                     the button's name on submit (frontend layout JS strips
+                     it), causing the handler to receive action=None and
+                     render "Invalid request". -->
+                <div class="d-grid gap-2">
+                    <form method="POST" action="/oauth/device/authorize">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <input type="hidden" name="device_code" t-att-value="device_auth.device_code"/>
+                        <input type="hidden" name="action" value="authorize"/>
+                        <button type="submit" class="btn btn-primary btn-lg w-100">
                             <i class="fa fa-check me-2"/>
                             Authorize CLI
                         </button>
-                        <button type="submit" name="action" value="deny"
-                                class="btn btn-outline-secondary">
+                    </form>
+                    <form method="POST" action="/oauth/device/authorize">
+                        <input type="hidden" name="csrf_token" t-att-value="request.csrf_token()"/>
+                        <input type="hidden" name="device_code" t-att-value="device_auth.device_code"/>
+                        <input type="hidden" name="action" value="deny"/>
+                        <button type="submit" class="btn btn-outline-secondary w-100">
                             <i class="fa fa-times me-2"/>
                             Deny
                         </button>
-                    </div>
-                </form>
+                    </form>
+                </div>
 
                 <!-- Timeout notice -->
                 <div class="text-center mt-4">

@@ -439,13 +439,21 @@ class IkOAuthClientRegistration(models.Model):
         Behavior aligns with RFC 6749 §3.3: when the request includes a scope
         parameter, the server returns the intersection (requested ∩ allowed).
         When the request omits scope, the server falls back to the client's
-        default_scopes (defaults ∩ allowed).
+        default_scopes. If default_scopes is also empty, the client gets all
+        its allowed_scopes as a last-resort default.
 
-        Previous behavior unioned defaults and requested unconditionally,
-        which forced default scopes onto every grant — e.g. a user who
-        explicitly requested 'mcp:read' on a client whose defaults included
-        'mcp:write mcp:execute' got all three. That violated user intent and
-        the RFC.
+        Why the allowed_scopes fallback is necessary:
+        Real-world MCP clients (Claude.ai, Claude Desktop) omit the scope
+        parameter in both DCR and authorize requests. RFC 7591 (DCR) says
+        "if scope is omitted, the server MAY register with a default set"
+        but doesn't mandate it. The per-instance DCR endpoint (inouk_mcp)
+        defaults allowed_scopes to the full provider vocabulary, but the
+        global DCR endpoint (inouk_api_auth) has no provider context and
+        stores whatever the client sends — which is nothing.
+        At authorize time, RFC 6749 §3.3 says the server "MUST either
+        process the request using a pre-defined default value or fail".
+        Without this fallback, scope-less clients get an empty token that
+        is rejected by every scope-gated endpoint.
 
         Args:
             requested_scope: Space-separated scope string (or None/empty).
@@ -460,7 +468,10 @@ class IkOAuthClientRegistration(models.Model):
             valid = requested & allowed
         else:
             defaults = set((self.default_scopes or '').split())
-            valid = defaults & allowed
+            # Fallback: when neither scope nor default_scopes are set,
+            # grant the client its full allowed vocabulary rather than
+            # issuing a useless empty-scope token.
+            valid = defaults & allowed if defaults else allowed
         return ' '.join(sorted(valid)) if valid else ''
 
     def has_grant_type(self, grant_type):

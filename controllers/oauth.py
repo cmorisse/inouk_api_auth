@@ -198,6 +198,31 @@ class OAuthController(http.Controller):
         else:
             token_endpoint_auth_method = requested_auth_method
 
+        # Resolve scopes: use client-requested scope, or fall back to the
+        # union of all MCP provider scopes if available.
+        # TODO: remove MCP fallback when Claude.ai uses per-instance OAuth
+        #   endpoints as advertised in authInfo (initialize response).
+        #   Claude.ai currently ignores per-instance URLs and uses global
+        #   /.well-known/oauth-authorization-server → /oauth/register →
+        #   /oauth/authorize, bypassing the per-instance DCR that knows the
+        #   provider vocabulary. ChatGPT handles this correctly.
+        #   See: inouk_mcp/docs/claude_integration.md §"Known Issues"
+        requested_scope = data.get('scope', '')
+        if not requested_scope:
+            try:
+                McpProvider = request.env['ik.mcp_provider'].sudo()
+                all_scopes = set()
+                for provider in McpProvider.search([]):
+                    all_scopes |= provider.get_scope_codes()
+                if all_scopes:
+                    requested_scope = ' '.join(sorted(all_scopes))
+                    _logger.info(
+                        "OAuth DCR: scope omitted, defaulting to MCP provider "
+                        "scopes: %s", requested_scope,
+                    )
+            except KeyError:
+                pass  # inouk_mcp not installed, no MCP scopes available
+
         client = ClientReg.create({
             'client_name': client_name,
             'redirect_uris': '\n'.join(redirect_uris) if redirect_uris else '',
@@ -207,12 +232,8 @@ class OAuthController(http.Controller):
             'grant_types': grant_types,
             'response_types': 'code',
             'token_endpoint_auth_method': token_endpoint_auth_method,
-            # Decoupled from MCP-specific vocabulary. The global DCR endpoint
-            # only knows what the requesting client declares; consuming addons
-            # (e.g. inouk_mcp) provide their own per-resource DCR endpoint
-            # that intersects the requested scope against the resource's
-            # vocabulary.
-            'allowed_scopes': data.get('scope', ''),
+            'allowed_scopes': requested_scope,
+            'default_scopes': requested_scope,  # RFC 6749 §3.3: pre-defined default when scope omitted at authorize
         })
 
         # Generate secret if auth method requires it

@@ -34,7 +34,7 @@ Features:
     # for the full list
     'category': 'Inouk',
     'version': '2.0.1',
-    "license": "LGPL-3",
+    'license': 'Other proprietary',  # Elastic License v2.0 — see LICENSE file at repo root
     # any module necessary for this one to work correctly
     'depends': [
         'inouk_core'

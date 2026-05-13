@@ -2,6 +2,13 @@
 
 Token-based API authentication system with plain JSON support for Odoo.
 
+**License**: Elastic License v2.0 — see [`LICENSE`](LICENSE) for the full text.
+
+> Source-available, perpetual. Commercial use requires a paid subscription.
+> Third parties may not provide `inouk_api_auth` to others as a hosted or
+> managed service without a separate commercial agreement.
+> Migrated from LGPL-3 on 2026-05-13.
+
 ## Features
 
 - **Multiple authentication methods**: Bearer tokens, AWS Signature V4, HTTP Basic Auth

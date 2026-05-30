@@ -1,11 +1,18 @@
 <?xml version='1.0' encoding='utf-8'?>
 <odoo>
     <data noupdate="0">
-        <!-- API Auth submenu under API -->
+        <!-- API Auth submenu under API.
+             Restricted to base.group_system so that MCP-related items don't
+             surface here for MCP managers — they have a dedicated entry
+             point under Inouk → MCP → Tokens that exposes the same actions
+             (see inouk_mcp/menu.xml and views/oauth_*_views.xml). Sysadmin
+             keeps this generic submenu for non-MCP OAuth flows (LEGO,
+             GitLab webhooks, Terraform, etc.). -->
         <menuitem id="api_auth__submenu"
                   name="API Auth"
                   parent="inouk_core.api_mainmmenu"
-                  sequence="10000" />
+                  sequence="10000"
+                  groups="base.group_system" />
 
         <!-- Menu items -->
         <menuitem id="api_auth_token__menuitem"

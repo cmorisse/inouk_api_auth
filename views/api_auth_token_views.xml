@@ -233,12 +233,34 @@
         </record>
 
 
+        <record id="ik_api_auth_token__searchview" model="ir.ui.view">
+            <field name="name">ik.api_auth_token.searchview</field>
+            <field name="model">ik.api_auth_token</field>
+            <field name="arch" type="xml">
+                <search>
+                    <field name="name"/>
+                    <field name="user_id"/>
+                    <field name="token_type"/>
+                    <filter name="active" string="Active"
+                            domain="['&amp;', ('is_compromised', '=', False), '|', ('expiration_ts', '=', False), ('expiration_ts', '&gt;', context_today().strftime('%Y-%m-%d'))]"/>
+                    <filter name="expired" string="Expired"
+                            domain="[('expiration_ts', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
+                    <filter name="compromised" string="Compromised" domain="[('is_compromised', '=', True)]"/>
+                    <group expand="0" string="Group By">
+                        <filter name="group_user" string="User" context="{'group_by': 'user_id'}"/>
+                        <filter name="group_token_type" string="Token Type" context="{'group_by': 'token_type'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
         <record id="ik_api_auth_token__treeview" model="ir.ui.view">
             <field name="name">ik.api_auth_token.treeview</field>
             <field name="model">ik.api_auth_token</field>
             <field name="priority" eval="15" />
             <field name="arch" type="xml">
-                <list>
+                <list decoration-muted="is_compromised"
+                      decoration-danger="not is_compromised and expiration_ts and expiration_ts &lt; current_date">
                     <field name="name"/>
                     <field name="user_id"/>
                     <field name="token_type"/>
@@ -248,13 +270,13 @@
                 </list>
             </field>
         </record>
-        
+
         <record id="ik_api_auth_token__actwindow" model="ir.actions.act_window">
             <field name="name">API Auth Tokens</field>
             <field name="type">ir.actions.act_window</field>
             <field name="res_model">ik.api_auth_token</field>
             <field name="view_mode">list,form</field>
-            <field name="context" />
+            <field name="search_view_id" ref="ik_api_auth_token__searchview"/>
         </record>
     </data>
 </odoo>

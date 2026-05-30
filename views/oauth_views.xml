@@ -200,11 +200,33 @@
              OAuth Authorization Code Views
              ═══════════════════════════════════════════════════════════════════════════ -->
 
+        <record id="ik_oauth_authorization_code__searchview" model="ir.ui.view">
+            <field name="name">ik.oauth_authorization_code.searchview</field>
+            <field name="model">ik.oauth_authorization_code</field>
+            <field name="arch" type="xml">
+                <search>
+                    <field name="user_id"/>
+                    <field name="client_registration_id"/>
+                    <field name="client_id"/>
+                    <filter name="pending" string="Pending"
+                            domain="['&amp;', ('used', '=', False), ('expires_at', '&gt;', context_today().strftime('%Y-%m-%d'))]"/>
+                    <filter name="expired_unused" string="Expired (unused)"
+                            domain="['&amp;', ('used', '=', False), ('expires_at', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
+                    <filter name="used" string="Used" domain="[('used', '=', True)]"/>
+                    <group expand="0" string="Group By">
+                        <filter name="group_user" string="User" context="{'group_by': 'user_id'}"/>
+                        <filter name="group_client" string="Client" context="{'group_by': 'client_registration_id'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
         <record id="ik_oauth_authorization_code__treeview" model="ir.ui.view">
             <field name="name">ik.oauth_authorization_code.treeview</field>
             <field name="model">ik.oauth_authorization_code</field>
             <field name="arch" type="xml">
-                <list>
+                <list decoration-muted="used"
+                      decoration-danger="not used and expires_at and expires_at &lt; current_date">
                     <field name="code" groups="base.group_no_one"/>
                     <field name="client_id"/>
                     <field name="user_id"/>
@@ -268,24 +290,49 @@
             <field name="type">ir.actions.act_window</field>
             <field name="res_model">ik.oauth_authorization_code</field>
             <field name="view_mode">list,form</field>
+            <field name="search_view_id" ref="ik_oauth_authorization_code__searchview"/>
         </record>
 
         <!-- ═══════════════════════════════════════════════════════════════════════════
              OAuth Refresh Token Views
              ═══════════════════════════════════════════════════════════════════════════ -->
 
+        <record id="ik_oauth_refresh_token__searchview" model="ir.ui.view">
+            <field name="name">ik.oauth_refresh_token.searchview</field>
+            <field name="model">ik.oauth_refresh_token</field>
+            <field name="arch" type="xml">
+                <search>
+                    <field name="user_id"/>
+                    <field name="client_registration_id"/>
+                    <field name="client_id"/>
+                    <filter name="active" string="Active"
+                            domain="['&amp;', ('revoked', '=', False), '|', ('expires_at', '=', False), ('expires_at', '&gt;', context_today().strftime('%Y-%m-%d'))]"/>
+                    <filter name="expiring_soon" string="Expiring &lt; 7 days"
+                            domain="['&amp;', '&amp;', ('revoked', '=', False), ('expires_at', '&gt;', context_today().strftime('%Y-%m-%d')), ('expires_at', '&lt;', (context_today() + relativedelta(days=7)).strftime('%Y-%m-%d'))]"/>
+                    <filter name="expired" string="Expired"
+                            domain="['&amp;', ('expires_at', '!=', False), ('expires_at', '&lt;', context_today().strftime('%Y-%m-%d'))]"/>
+                    <filter name="revoked" string="Revoked" domain="[('revoked', '=', True)]"/>
+                    <group expand="0" string="Group By">
+                        <filter name="group_user" string="User" context="{'group_by': 'user_id'}"/>
+                        <filter name="group_client" string="Client" context="{'group_by': 'client_registration_id'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
         <record id="ik_oauth_refresh_token__treeview" model="ir.ui.view">
             <field name="name">ik.oauth_refresh_token.treeview</field>
             <field name="model">ik.oauth_refresh_token</field>
             <field name="arch" type="xml">
-                <list>
+                <list decoration-muted="revoked"
+                      decoration-danger="not revoked and expires_at and expires_at &lt; current_date">
                     <field name="token" groups="base.group_no_one"/>
                     <field name="client_id"/>
                     <field name="user_id"/>
-                    <field name="scope"/>
+                    <field name="scope" optional="hide"/>
                     <field name="expires_at"/>
-                    <field name="revoked" decoration-danger="revoked"/>
-                    <field name="use_count"/>
+                    <field name="revoked" widget="boolean_toggle" readonly="1"/>
+                    <field name="use_count" optional="hide"/>
                     <field name="last_used_at"/>
                     <field name="create_date" optional="hide"/>
                 </list>
@@ -345,20 +392,48 @@
             <field name="type">ir.actions.act_window</field>
             <field name="res_model">ik.oauth_refresh_token</field>
             <field name="view_mode">list,form</field>
+            <field name="search_view_id" ref="ik_oauth_refresh_token__searchview"/>
+            <field name="context">{'search_default_active': 1}</field>
         </record>
 
         <!-- ═══════════════════════════════════════════════════════════════════════════
              OAuth Device Code Views
              ═══════════════════════════════════════════════════════════════════════════ -->
 
+        <record id="ik_oauth_device_code__searchview" model="ir.ui.view">
+            <field name="name">ik.oauth_device_code.searchview</field>
+            <field name="model">ik.oauth_device_code</field>
+            <field name="arch" type="xml">
+                <search>
+                    <field name="user_code"/>
+                    <field name="user_id"/>
+                    <field name="client_registration_id"/>
+                    <filter name="pending" string="Pending" domain="[('state', '=', 'pending')]"/>
+                    <filter name="authorized" string="Authorized" domain="[('state', '=', 'authorized')]"/>
+                    <filter name="denied" string="Denied" domain="[('state', '=', 'denied')]"/>
+                    <filter name="expired" string="Expired" domain="[('state', '=', 'expired')]"/>
+                    <group expand="0" string="Group By">
+                        <filter name="group_state" string="State" context="{'group_by': 'state'}"/>
+                        <filter name="group_user" string="User" context="{'group_by': 'user_id'}"/>
+                        <filter name="group_client" string="Client" context="{'group_by': 'client_registration_id'}"/>
+                    </group>
+                </search>
+            </field>
+        </record>
+
         <record id="ik_oauth_device_code__treeview" model="ir.ui.view">
             <field name="name">ik.oauth_device_code.treeview</field>
             <field name="model">ik.oauth_device_code</field>
             <field name="arch" type="xml">
-                <list>
+                <list decoration-muted="state in ('expired', 'denied')"
+                      decoration-success="state == 'authorized'"
+                      decoration-info="state == 'pending'">
                     <field name="user_code"/>
                     <field name="client_registration_id"/>
-                    <field name="state" decoration-success="state == 'authorized'" decoration-warning="state == 'pending'" decoration-danger="state in ('denied', 'expired')"/>
+                    <field name="state" widget="badge"
+                           decoration-success="state == 'authorized'"
+                           decoration-warning="state == 'pending'"
+                           decoration-danger="state in ('denied', 'expired')"/>
                     <field name="user_id"/>
                     <field name="scope" optional="hide"/>
                     <field name="expires_at"/>
@@ -436,6 +511,7 @@
             <field name="type">ir.actions.act_window</field>
             <field name="res_model">ik.oauth_device_code</field>
             <field name="view_mode">list,form</field>
+            <field name="search_view_id" ref="ik_oauth_device_code__searchview"/>
         </record>
 
     </data>

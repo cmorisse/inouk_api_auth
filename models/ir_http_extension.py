@@ -60,7 +60,7 @@ class IrHttpExtension(models.AbstractModel):
         })
 
         # Force commit to ensure the token is immediately marked as compromised
-        token_obj.flush()
+        token_obj.flush_recordset()
         request.env.cr.commit()
 
         _logger.info("Token %s (ID: %s) set as compromised!", token_obj.name, token_obj.id)
